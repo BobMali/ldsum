@@ -146,20 +146,25 @@ func TestParseDigest(t *testing.T) {
 	}
 
 	invalid := []struct {
-		name  string
-		input string
+		name    string
+		input   string
+		wantErr string
 	}{
-		{name: "empty", input: ""},
-		{name: "only whitespace", input: "   "},
-		{name: "non-hex characters", input: strings.Repeat("z", 64)},
-		{name: "odd length", input: strings.Repeat("a", 63)},
-		{name: "sha1 length", input: strings.Repeat("a", 40)},
+		{name: "empty", input: "", wantErr: "empty checksum"},
+		{name: "only whitespace", input: "   ", wantErr: "empty checksum"},
+		{name: "non-hex characters", input: strings.Repeat("z", 64), wantErr: "not a hex checksum"},
+		{name: "odd length", input: strings.Repeat("a", 63), wantErr: "not a hex checksum"},
+		{name: "sha1 length", input: strings.Repeat("a", 40), wantErr: "cannot tell the algorithm"},
 	}
 
 	for _, tt := range invalid {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, err := ParseDigest(tt.input); err == nil {
+			_, err := ParseDigest(tt.input)
+			if err == nil {
 				t.Errorf("ParseDigest(%q) = nil error, want an error", tt.input)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("ParseDigest(%q) error = %v, want substring %q", tt.input, err, tt.wantErr)
 			}
 		})
 	}
