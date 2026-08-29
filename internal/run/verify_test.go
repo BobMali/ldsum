@@ -109,8 +109,9 @@ func TestVerifyErrors(t *testing.T) {
 		if !errors.Is(err, fs.ErrNotExist) {
 			t.Fatalf("Verify() error = %v, want one wrapping fs.ErrNotExist", err)
 		}
-		if !strings.Contains(err.Error(), missing) {
-			t.Errorf("error = %q, want it to name the path", err)
+		want := "open " + missing + ": no such file or directory"
+		if err.Error() != want {
+			t.Errorf("error = %q, want %q", err.Error(), want)
 		}
 	})
 

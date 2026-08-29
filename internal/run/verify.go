@@ -40,13 +40,13 @@ func Verify(out, errOut io.Writer, opts VerifyOptions) error {
 
 	f, err := os.Open(opts.Path)
 	if err != nil {
-		return fmt.Errorf("open %s: %w", opts.Path, err)
+		return err
 	}
 	defer f.Close()
 
 	actual, err := hash.Sum(f, expected.Algorithm)
 	if err != nil {
-		return fmt.Errorf("read %s: %w", opts.Path, err)
+		return err
 	}
 
 	if !actual.Equal(expected) {
