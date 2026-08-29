@@ -16,10 +16,10 @@ The algorithm is taken from the length of the checksum — 64 hex characters is
 sha256, 128 is sha512 — unless --algo names one. It exits 0 when the digest
 matches, 1 when it does not, and 2 when the command itself was wrong.`,
 	Args: cobra.ExactArgs(2),
-	// run already reports the verdict, so Cobra must not print it again.
-	SilenceErrors: true,
-	SilenceUsage:  true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// Arguments have parsed by this point, so a later failure is not a usage
+		// problem and usage text would only bury the verdict.
+		cmd.SilenceUsage = true
 		return run.Verify(cmd.OutOrStdout(), cmd.ErrOrStderr(), run.VerifyOptions{
 			Path:      args[0],
 			Expected:  args[1],

@@ -41,6 +41,8 @@ SHA256SUMS file published alongside a release).
 
 ldsum reports whether the computed digest matches the expected one and exits
 non-zero when it does not, so it can be dropped straight into a script.`,
+	// Execute prints errors itself, so Cobra must not print a second copy.
+	SilenceErrors: true,
 }
 
 // Execute runs the command tree and returns the process exit code. It reports
