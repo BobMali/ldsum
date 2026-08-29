@@ -233,13 +233,19 @@ func TestParseDigestAs(t *testing.T) {
 			algorithm: SHA256,
 			wantErr:   "not a hex checksum",
 		},
+		{
+			name:      "unknown algorithm is reported before bad hex",
+			input:     strings.Repeat("z", 64),
+			algorithm: Algorithm("md5"),
+			wantErr:   "unknown algorithm",
+		},
 	}
 
 	for _, tt := range invalid {
 		t.Run(tt.name, func(t *testing.T) {
 			_, err := ParseDigestAs(tt.input, tt.algorithm)
 			if err == nil {
-				t.Errorf("ParseDigestAs(%q, %q) = nil error, want an error",
+				t.Fatalf("ParseDigestAs(%q, %q) = nil error, want an error",
 					tt.input, tt.algorithm)
 			}
 			if !strings.Contains(err.Error(), tt.wantErr) {
