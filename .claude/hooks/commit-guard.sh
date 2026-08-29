@@ -27,11 +27,19 @@ block() {
   exit 2
 }
 
-case "$cmd" in
-  *--no-verify*|*" -n "*)
-    block "Refused: --no-verify skips the commit-msg hook. Fix the message instead."
-    ;;
-esac
+# Inspect only the git commit invocation's own arguments, so a -n belonging
+# to grep, sort or echo elsewhere on the line does not trip the guard.
+commit_segs="$(printf '%s' "$cmd" | tr ';&|' '\n' \
+  | grep -E '(^|[[:space:]])git[[:space:]]+commit' || true)"
+
+while IFS= read -r seg; do
+  [ -n "$seg" ] || continue
+  case " $seg " in
+    *" --no-verify "*|*" -n "*)
+      block "Refused: that flag skips the commit-msg hook. Fix the message instead."
+      ;;
+  esac
+done <<< "$commit_segs"
 
 # Extract the subject line from -m "..." / -m '...' / a heredoc.
 subject=""
