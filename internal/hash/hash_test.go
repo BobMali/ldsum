@@ -213,29 +213,38 @@ func TestParseDigestAs(t *testing.T) {
 		name      string
 		input     string
 		algorithm Algorithm
+		wantErr   string
 	}{
 		{
 			name:      "length contradicts the named algorithm",
 			input:     sha256Hex,
 			algorithm: SHA512,
+			wantErr:   "needs 128 hex characters",
 		},
 		{
 			name:      "unknown algorithm",
 			input:     sha256Hex,
 			algorithm: Algorithm("md5"),
+			wantErr:   "unknown algorithm",
 		},
 		{
 			name:      "not hex",
 			input:     strings.Repeat("z", 64),
 			algorithm: SHA256,
+			wantErr:   "not a hex checksum",
 		},
 	}
 
 	for _, tt := range invalid {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, err := ParseDigestAs(tt.input, tt.algorithm); err == nil {
+			_, err := ParseDigestAs(tt.input, tt.algorithm)
+			if err == nil {
 				t.Errorf("ParseDigestAs(%q, %q) = nil error, want an error",
 					tt.input, tt.algorithm)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("ParseDigestAs(%q, %q) error = %v, want substring %q",
+					tt.input, tt.algorithm, err, tt.wantErr)
 			}
 		})
 	}
