@@ -101,3 +101,96 @@ func TestSumSHA512(t *testing.T) {
 		})
 	}
 }
+
+func TestParseDigest(t *testing.T) {
+	sha256Hex := strings.Repeat("a", 64)
+	sha512Hex := strings.Repeat("b", 128)
+
+	valid := []struct {
+		name  string
+		input string
+		want  Digest
+	}{
+		{
+			name:  "sha256 length",
+			input: sha256Hex,
+			want:  Digest{Algorithm: SHA256, Hex: sha256Hex},
+		},
+		{
+			name:  "sha512 length",
+			input: sha512Hex,
+			want:  Digest{Algorithm: SHA512, Hex: sha512Hex},
+		},
+		{
+			name:  "uppercase is lowered",
+			input: strings.ToUpper(sha256Hex),
+			want:  Digest{Algorithm: SHA256, Hex: sha256Hex},
+		},
+		{
+			name:  "surrounding space is trimmed",
+			input: "  " + sha256Hex + "\n",
+			want:  Digest{Algorithm: SHA256, Hex: sha256Hex},
+		},
+	}
+
+	for _, tt := range valid {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ParseDigest(tt.input)
+			if err != nil {
+				t.Fatalf("ParseDigest() error = %v", err)
+			}
+			if got != tt.want {
+				t.Errorf("ParseDigest() = %+v, want %+v", got, tt.want)
+			}
+		})
+	}
+
+	invalid := []struct {
+		name  string
+		input string
+	}{
+		{name: "empty", input: ""},
+		{name: "only whitespace", input: "   "},
+		{name: "non-hex characters", input: strings.Repeat("z", 64)},
+		{name: "odd length", input: strings.Repeat("a", 63)},
+		{name: "sha1 length", input: strings.Repeat("a", 40)},
+	}
+
+	for _, tt := range invalid {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := ParseDigest(tt.input); err == nil {
+				t.Errorf("ParseDigest(%q) = nil error, want an error", tt.input)
+			}
+		})
+	}
+}
+
+func TestDigestEqual(t *testing.T) {
+	base := Digest{Algorithm: SHA256, Hex: strings.Repeat("a", 64)}
+
+	tests := []struct {
+		name  string
+		other Digest
+		want  bool
+	}{
+		{name: "same algorithm and hex", other: base, want: true},
+		{
+			name:  "different hex",
+			other: Digest{Algorithm: SHA256, Hex: strings.Repeat("b", 64)},
+			want:  false,
+		},
+		{
+			name:  "different algorithm",
+			other: Digest{Algorithm: SHA512, Hex: base.Hex},
+			want:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := base.Equal(tt.other); got != tt.want {
+				t.Errorf("Equal() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}

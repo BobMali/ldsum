@@ -9,6 +9,7 @@ import (
 	"fmt"
 	stdhash "hash"
 	"io"
+	"strings"
 )
 
 // Algorithm names a supported hash function.
@@ -49,4 +50,45 @@ func newHash(a Algorithm) (stdhash.Hash, error) {
 	default:
 		return nil, fmt.Errorf("unknown algorithm %q", a)
 	}
+}
+
+// hexLen is the digest length, in hex characters, of each algorithm. The
+// lengths are distinct, which is what makes inference possible.
+var hexLen = map[Algorithm]int{
+	SHA256: 64,
+	SHA512: 128,
+}
+
+// ParseDigest normalises s and infers the algorithm from its length.
+func ParseDigest(s string) (Digest, error) {
+	norm, err := normalize(s)
+	if err != nil {
+		return Digest{}, err
+	}
+	for a, n := range hexLen {
+		if len(norm) == n {
+			return Digest{Algorithm: a, Hex: norm}, nil
+		}
+	}
+	return Digest{}, fmt.Errorf(
+		"cannot tell the algorithm from %d hex characters: want 64 (sha256) or 128 (sha512)",
+		len(norm),
+	)
+}
+
+// Equal reports whether two digests are the same. The expected checksum is
+// public, so there is nothing here for a timing attack to learn.
+func (d Digest) Equal(o Digest) bool {
+	return d.Algorithm == o.Algorithm && d.Hex == o.Hex
+}
+
+func normalize(s string) (string, error) {
+	norm := strings.ToLower(strings.TrimSpace(s))
+	if norm == "" {
+		return "", fmt.Errorf("empty checksum")
+	}
+	if _, err := hex.DecodeString(norm); err != nil {
+		return "", fmt.Errorf("not a hex checksum: %q", norm)
+	}
+	return norm, nil
 }
