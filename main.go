@@ -21,8 +21,12 @@ THE SOFTWARE.
 */
 package main
 
-import "github.com/BobMali/ldsum/cmd"
+import (
+	"os"
+
+	"github.com/BobMali/ldsum/cmd"
+)
 
 func main() {
-	cmd.Execute()
+	os.Exit(cmd.Execute())
 }

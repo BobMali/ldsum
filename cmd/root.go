@@ -22,8 +22,10 @@ THE SOFTWARE.
 package cmd
 
 import (
-	"os"
+	"errors"
+	"fmt"
 
+	"github.com/BobMali/ldsum/internal/run"
 	"github.com/spf13/cobra"
 )
 
@@ -41,11 +43,16 @@ ldsum reports whether the computed digest matches the expected one and exits
 non-zero when it does not, so it can be dropped straight into a script.`,
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
-func Execute() {
+// Execute runs the command tree and returns the process exit code. It reports
+// the error itself, except for a mismatch, whose detail run has already
+// printed.
+func Execute() int {
 	err := rootCmd.Execute()
 	if err != nil {
-		os.Exit(1)
+		var mismatch *run.MismatchError
+		if !errors.As(err, &mismatch) {
+			fmt.Fprintf(rootCmd.ErrOrStderr(), "ldsum: %v\n", err)
+		}
 	}
+	return exitCode(err)
 }
