@@ -9,7 +9,16 @@
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/commit-guard.sh\""
           }
         ]
-      }
+      },
+      {
+          "matcher": "Write|Edit",
+          "hooks": [
+            {
+              "type": "command",
+              "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/test-guard.sh\""
+            }
+          ]
+        }
     ],
     "PostToolUse": [
       {
