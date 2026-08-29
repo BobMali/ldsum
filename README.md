@@ -42,7 +42,7 @@ Exit codes, so it drops into a script:
 |------|---------|
 | 0 | the digest matched |
 | 1 | the digest did not match, or the file is missing |
-| 2 | the command was wrong: bad checksum, unknown algorithm, unreadable file |
+| 2 | the command could not be carried out: wrong argument count, bad checksum, unknown algorithm, unreadable file |
 
 ## Requirements
 
