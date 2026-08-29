@@ -38,7 +38,7 @@ cobra-cli add <name>            # scaffold a new subcommand into cmd/
 
 `cobra-cli` is installed at `~/go/bin/cobra-cli`. Note that files it generates are **not** gofmt-clean — run `gofmt -w` on them afterwards.
 
-Module downloads (`go get`, `go mod tidy` on a new dep) fail under the Bash sandbox with a TLS certificate error; those specific commands need `dangerouslyDisableSandbox`. Ordinary build/test/vet work fine sandboxed.
+Anything that reaches the network fails under the Bash sandbox with a TLS certificate error (`CAfile: /etc/ssl/cert.pem`): module downloads (`go get`, `go mod tidy` on a new dep), `git push` / `git fetch`, and `gh`. Those need `dangerouslyDisableSandbox`. Ordinary build/test/vet work fine sandboxed.
 
 ## Layout
 
@@ -114,13 +114,17 @@ commands and report what they actually printed.
 
 Identity is set repo-locally (`BobMali` / `BobMali@users.noreply.github.com`), not globally — don't rely on the global config.
 
-The remote `origin` (`https://github.com/BobMali/ldsum.git`) still has `master` as its default branch, while local work is on `main`. `main` is a linear descendant of `master`, so it pushes without force; the default branch has yet to be switched on GitHub.
+The remote `origin` (`https://github.com/BobMali/ldsum.git`) has `main` as its default branch, and local `main` tracks `origin/main`. The old `master` branch has been deleted; its history is contained in `main`.
 
 ## Commit messages
 
 Conventional Commits, enforced by `.githooks/commit-msg` and a PreToolUse
 hook. A rejected commit is a message problem, never a reason to reach for
 `--no-verify`.
+
+The git hook is enabled per clone — `git config core.hooksPath .githooks`
+once, or it silently does nothing. Both hooks read the pattern from
+`.githooks/conventional-regex.txt`, so change it in one place.
 
 ```
 <type>(<scope>): <description>
