@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+Contributor-facing setup — cloning, enabling the hooks, the build commands — lives in `README.md`; keep it there rather than duplicating it here.
+
 ## What ldsum is
 
 A CLI that verifies a file against an expected checksum. Two input axes, both of which the design has to accommodate:
