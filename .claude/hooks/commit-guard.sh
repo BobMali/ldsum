@@ -56,7 +56,7 @@ subject="${subject%%$'\n'*}"
 # No message on the command line: the commit-msg hook will catch it.
 [ -n "$subject" ] || exit 0
 
-hook_dir="${CLAUDE_PROJECT_DIR:-.}/.githooks"
+hook_dir="${CLAUDE_PROJECT_DIR:-.}/githooks"
 regex_file="$hook_dir/conventional-regex.txt"
 [ -f "$regex_file" ] || exit 0
 regex="$(head -n 1 "$regex_file")"

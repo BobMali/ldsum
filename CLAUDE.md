@@ -89,6 +89,11 @@ testdata/
   exit non-zero. Don't stop at the first failure.
 - Errors are wrapped with context (`fmt.Errorf("read %s: %w", path, err)`)
   and never logged and returned at the same time.
+### Comments
+
+Comment only what the code cannot say: why a choice was made, or what an
+otherwise baffling construct is for. One or two lines. Don't narrate what
+the next line does.
 ### Dependencies
 
 - Standard library plus `spf13/cobra` only.
@@ -118,7 +123,7 @@ The remote `origin` (`https://github.com/BobMali/ldsum.git`) has `main` as its d
 
 ## Commit messages
 
-Conventional Commits, enforced by `.githooks/commit-msg` and a PreToolUse
+Conventional Commits, enforced by `githooks/commit-msg` and a PreToolUse
 hook. A rejected commit is a message problem, never a reason to reach for
 `--no-verify`.
 
@@ -138,7 +143,9 @@ hook. A rejected commit is a message problem, never a reason to reach for
 One logical change per commit. A test and the code it drives belong in the
 same commit; unrelated formatting does not.
 
-The body explains *why*, not *what* — the diff already shows what changed.
+Prefer a one-line message. Add a body only when the reason is too involved
+for the subject; it then explains *why*, not *what* — the diff already
+shows what changed.
 
 ```
 # good

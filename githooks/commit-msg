@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Validates the commit subject against the Conventional Commits pattern.
-# Enable once per clone:  git config core.hooksPath .githooks
+# Enable once per clone:  git config core.hooksPath githooks
 
 set -uo pipefail
 
