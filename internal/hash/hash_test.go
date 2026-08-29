@@ -45,3 +45,20 @@ func TestSumSHA256(t *testing.T) {
 		})
 	}
 }
+
+func TestSumUnknownAlgorithm(t *testing.T) {
+	tests := []struct {
+		name string
+		algo Algorithm
+	}{
+		{name: "unsupported algorithm", algo: Algorithm("md5")},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := Sum(strings.NewReader(""), tt.algo); err == nil {
+				t.Fatal("Sum() error = nil, want error for unknown algorithm")
+			}
+		})
+	}
+}
