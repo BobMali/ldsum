@@ -76,11 +76,9 @@ func TestVerifyCommand(t *testing.T) {
 		if want := path + ": FAILED\n"; stdout != want {
 			t.Errorf("stdout = %q, want %q", stdout, want)
 		}
-		if !strings.Contains(stderr, "expected: "+wrong) {
-			t.Errorf("stderr = %q, want the expected digest", stderr)
-		}
-		if strings.Contains(stderr, "Usage:") {
-			t.Errorf("stderr = %q, want no usage dump on a mismatch", stderr)
+		wantErr := "expected: " + wrong + "\nactual:   " + abcSHA256 + "\n"
+		if stderr != wantErr {
+			t.Errorf("stderr = %q, want %q", stderr, wantErr)
 		}
 	})
 
