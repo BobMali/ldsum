@@ -96,8 +96,11 @@ testdata/
   during verify, `2` usage or I/O error.
 - On `verify`, keep going after a mismatch and report every file, then
   exit non-zero. Don't stop at the first failure.
-- Errors are wrapped with context (`fmt.Errorf("read %s: %w", path, err)`)
-  and never logged and returned at the same time.
+- Errors are wrapped with context that they do not already carry — for example,
+  `fmt.Errorf("read %s: %w", path, err)` is right when the error has no path.
+  But `os` and `io` operations return `*fs.PathError` which already carries the
+  operation and path, so a second copy must not be added. Errors are never
+  logged and returned at the same time.
 ### Comments
 
 Comment only what the code cannot say: why a choice was made, or what an
