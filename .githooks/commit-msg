@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# Validates the commit subject against the Conventional Commits pattern.
+# Enable once per clone:  git config core.hooksPath .githooks
+
+set -uo pipefail
+
+msg_file="$1"
+hook_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+regex="$(head -n 1 "$hook_dir/conventional-regex.txt")"
+
+# First non-comment, non-empty line is the subject.
+subject="$(grep -v '^#' "$msg_file" | grep -v '^[[:space:]]*$' | head -n 1)"
+
+# Let git's own machinery handle merges, reverts and fixups.
+case "$subject" in
+  "Merge "*|"Revert "*|"fixup!"*|"squash!"*) exit 0 ;;
+  "") echo "commit-msg: empty commit message." >&2; exit 1 ;;
+esac
+
+if printf '%s' "$subject" | grep -qE "$regex"; then
+  exit 0
+fi
+
+cat >&2 <<MSG
+commit-msg: subject does not follow Conventional Commits.
+
+  got: $subject
+
+Expected: <type>(<scope>): <description>
+
+  types:  feat fix docs test refactor perf build ci chore revert
+  scopes: hash checksums cmd run ci deps   (optional)
+  desc:   lowercase, imperative, no trailing period, <= 66 chars
+  break:  append ! before the colon, e.g. feat(cmd)!: drop --legacy
+
+Examples:
+  feat(cmd): add verify subcommand
+  fix(checksums): handle lines with trailing whitespace
+  test(hash): cover empty input vector
+MSG
+exit 1

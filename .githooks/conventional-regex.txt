@@ -1,0 +1,1 @@
+^(feat|fix|docs|test|refactor|perf|build|ci|chore|revert)(\((hash|checksums|cmd|run|ci|deps)\))?!?: [a-z].{0,64}[^.]$
