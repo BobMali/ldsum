@@ -3,6 +3,8 @@ package run
 import (
 	"bytes"
 	"errors"
+	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -94,4 +96,101 @@ func TestVerifyMismatch(t *testing.T) {
 	if !strings.Contains(errOut.String(), "actual:   "+abcSHA256) {
 		t.Errorf("stderr = %q, want it to contain the actual digest", errOut.String())
 	}
+}
+
+func TestVerifyErrors(t *testing.T) {
+	t.Run("missing file", func(t *testing.T) {
+		missing := filepath.Join(t.TempDir(), "nope.txt")
+
+		err := Verify(io.Discard, io.Discard, VerifyOptions{
+			Path:     missing,
+			Expected: abcSHA256,
+		})
+		if !errors.Is(err, fs.ErrNotExist) {
+			t.Fatalf("Verify() error = %v, want one wrapping fs.ErrNotExist", err)
+		}
+		if !strings.Contains(err.Error(), missing) {
+			t.Errorf("error = %q, want it to name the path", err)
+		}
+	})
+
+	t.Run("path is a directory", func(t *testing.T) {
+		dir := t.TempDir()
+
+		err := Verify(io.Discard, io.Discard, VerifyOptions{
+			Path:     dir,
+			Expected: abcSHA256,
+		})
+		if err == nil {
+			t.Fatal("Verify() = nil error, want an error")
+		}
+		if errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("error = %v, want it not to look like a missing file", err)
+		}
+	})
+
+	t.Run("unreadable file", func(t *testing.T) {
+		if os.Geteuid() == 0 {
+			t.Skip("root reads a file whatever its mode")
+		}
+		path := writeFixture(t, "abc")
+		if err := os.Chmod(path, 0o000); err != nil {
+			t.Fatalf("chmod: %v", err)
+		}
+
+		err := Verify(io.Discard, io.Discard, VerifyOptions{
+			Path:     path,
+			Expected: abcSHA256,
+		})
+		if err == nil {
+			t.Fatal("Verify() = nil error, want a permission error")
+		}
+		if errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("error = %v, want it not to look like a missing file", err)
+		}
+	})
+
+	t.Run("checksum is not hex", func(t *testing.T) {
+		path := writeFixture(t, "abc")
+
+		err := Verify(io.Discard, io.Discard, VerifyOptions{
+			Path:     path,
+			Expected: strings.Repeat("z", 64),
+		})
+		if err == nil {
+			t.Fatal("Verify() = nil error, want an error")
+		}
+		var mismatch *MismatchError
+		if errors.As(err, &mismatch) {
+			t.Errorf("error = %v, want a parse error rather than a mismatch", err)
+		}
+		if !strings.Contains(err.Error(), path) {
+			t.Errorf("error = %q, want it to name the path", err)
+		}
+	})
+
+	t.Run("checksum length matches no algorithm", func(t *testing.T) {
+		path := writeFixture(t, "abc")
+
+		err := Verify(io.Discard, io.Discard, VerifyOptions{
+			Path:     path,
+			Expected: strings.Repeat("a", 40),
+		})
+		if err == nil {
+			t.Fatal("Verify() = nil error, want an error")
+		}
+	})
+
+	t.Run("unknown algorithm", func(t *testing.T) {
+		path := writeFixture(t, "abc")
+
+		err := Verify(io.Discard, io.Discard, VerifyOptions{
+			Path:      path,
+			Expected:  abcSHA256,
+			Algorithm: "md5",
+		})
+		if err == nil {
+			t.Fatal("Verify() = nil error, want an error")
+		}
+	})
 }

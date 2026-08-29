@@ -35,7 +35,7 @@ func (e *MismatchError) Error() string {
 func Verify(out, errOut io.Writer, opts VerifyOptions) error {
 	expected, err := parseExpected(opts)
 	if err != nil {
-		return err
+		return fmt.Errorf("verify %s: %w", opts.Path, err)
 	}
 
 	f, err := os.Open(opts.Path)
