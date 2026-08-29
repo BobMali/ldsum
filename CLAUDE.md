@@ -66,9 +66,11 @@ The module path is `github.com/BobMali/ldsum`.
   test means the implementation is wrong until the author says
   otherwise. Ask before editing, renaming, deleting, skipping or
   loosening an existing test — including relaxing an assertion to make
-  it pass. Writing a *new* test file needs no permission.
-  `.claude/hooks/test-guard.sh` turns any write to an existing
-  `*_test.go` into a permission prompt.
+  it pass. Writing a *new* test file is free, and so is adding a new
+  case to an existing one. `.claude/hooks/test-guard.sh` draws that
+  line mechanically: an edit that only adds whole lines passes through,
+  while rewriting, renaming, deleting or overwriting existing test text
+  becomes a permission prompt.
 ### Structure
 
 ```
