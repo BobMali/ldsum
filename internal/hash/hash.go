@@ -4,6 +4,7 @@ package hash
 
 import (
 	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/hex"
 	"fmt"
 	stdhash "hash"
@@ -13,7 +14,10 @@ import (
 // Algorithm names a supported hash function.
 type Algorithm string
 
-const SHA256 Algorithm = "sha256"
+const (
+	SHA256 Algorithm = "sha256"
+	SHA512 Algorithm = "sha512"
+)
 
 // Digest is a computed or expected checksum. Hex is always lowercase.
 type Digest struct {
@@ -40,6 +44,8 @@ func newHash(a Algorithm) (stdhash.Hash, error) {
 	switch a {
 	case SHA256:
 		return sha256.New(), nil
+	case SHA512:
+		return sha512.New(), nil
 	default:
 		return nil, fmt.Errorf("unknown algorithm %q", a)
 	}
