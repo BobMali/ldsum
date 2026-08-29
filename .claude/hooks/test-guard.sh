@@ -90,6 +90,7 @@ if [ "$tool" = "Bash" ]; then
       git)
         case " $segment " in
           *" diff "*|*" log "*|*" show "*|*" status "*|*" blame "*|*" grep "*|*" ls-files "*|*" cat-file "*) ;;
+          *" add "*|*" commit "*) ;;
           *) ask "A git command may rewrite a test file." ;;
         esac
         ;;
