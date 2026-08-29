@@ -7,7 +7,11 @@
           {
             "type": "command",
             "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/commit-guard.sh\""
-          }
+          },
+	  {
+              "type": "command",
+              "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/test-guard.sh\""
+            }
         ]
       },
       {
