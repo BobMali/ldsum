@@ -1,2 +1,5 @@
 /ldsum
 .idea/
+
+# Subagent-driven development scratch
+.superpowers/
