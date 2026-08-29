@@ -7,8 +7,8 @@ given inline or read from a checksum file — a `SHA256SUMS` published alongside
 a release, say. `ldsum` prints whether the computed digest matches and exits
 non-zero when it does not, so it drops into a script.
 
-> **Status:** early. The CLI scaffold is in place; the checksum logic is not
-> written yet.
+> **Status:** The `verify` command works with local files and inline checksums.
+> URL input and checksum-file input are not yet implemented.
 
 ## Usage
 
@@ -33,7 +33,7 @@ sha256, 128 is sha512. Name it explicitly with `--algo` when you want the
 length checked too:
 
 ```sh
-ldsum verify --algo sha256 dist.tar.gz ba7816bf...
+ldsum verify --algo sha256 dist.tar.gz ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
 ```
 
 Exit codes, so it drops into a script:
