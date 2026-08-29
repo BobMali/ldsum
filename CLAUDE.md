@@ -62,6 +62,13 @@ The module path is `github.com/BobMali/ldsum`.
 - No mocks for the standard library. Pass `io.Reader` / `fs.FS` instead.
 - Test error paths: missing file, unreadable file, malformed checksum
   line, digest length mismatch, unknown algorithm.
+- **Once a test exists, changing it needs explicit permission.** A red
+  test means the implementation is wrong until the author says
+  otherwise. Ask before editing, renaming, deleting, skipping or
+  loosening an existing test — including relaxing an assertion to make
+  it pass. Writing a *new* test file needs no permission.
+  `.claude/hooks/test-guard.sh` turns any write to an existing
+  `*_test.go` into a permission prompt.
 ### Structure
 
 ```
