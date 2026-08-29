@@ -1,7 +1,7 @@
 # Verify a single file against an inline checksum
 
 Date: 2026-08-29
-Status: approved, not yet implemented
+Status: implemented on feat/verify-single-file branch
 
 The first real feature in ldsum. It fixes the shape of `internal/hash` and
 `internal/run`, so later features — URLs, checksum files, multiple targets —
