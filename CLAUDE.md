@@ -122,10 +122,6 @@ Conventional Commits, enforced by `.githooks/commit-msg` and a PreToolUse
 hook. A rejected commit is a message problem, never a reason to reach for
 `--no-verify`.
 
-The git hook is enabled per clone — `git config core.hooksPath .githooks`
-once, or it silently does nothing. Both hooks read the pattern from
-`.githooks/conventional-regex.txt`, so change it in one place.
-
 ```
 <type>(<scope>): <description>
 
