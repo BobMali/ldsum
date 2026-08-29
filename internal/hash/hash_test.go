@@ -194,3 +194,49 @@ func TestDigestEqual(t *testing.T) {
 		})
 	}
 }
+
+func TestParseDigestAs(t *testing.T) {
+	sha256Hex := strings.Repeat("a", 64)
+
+	t.Run("length matches the named algorithm", func(t *testing.T) {
+		got, err := ParseDigestAs(sha256Hex, SHA256)
+		if err != nil {
+			t.Fatalf("ParseDigestAs() error = %v", err)
+		}
+		want := Digest{Algorithm: SHA256, Hex: sha256Hex}
+		if got != want {
+			t.Errorf("ParseDigestAs() = %+v, want %+v", got, want)
+		}
+	})
+
+	invalid := []struct {
+		name      string
+		input     string
+		algorithm Algorithm
+	}{
+		{
+			name:      "length contradicts the named algorithm",
+			input:     sha256Hex,
+			algorithm: SHA512,
+		},
+		{
+			name:      "unknown algorithm",
+			input:     sha256Hex,
+			algorithm: Algorithm("md5"),
+		},
+		{
+			name:      "not hex",
+			input:     strings.Repeat("z", 64),
+			algorithm: SHA256,
+		},
+	}
+
+	for _, tt := range invalid {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := ParseDigestAs(tt.input, tt.algorithm); err == nil {
+				t.Errorf("ParseDigestAs(%q, %q) = nil error, want an error",
+					tt.input, tt.algorithm)
+			}
+		})
+	}
+}

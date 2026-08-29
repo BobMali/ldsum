@@ -76,6 +76,22 @@ func ParseDigest(s string) (Digest, error) {
 	)
 }
 
+// ParseDigestAs normalises s and checks it against the named algorithm.
+func ParseDigestAs(s string, a Algorithm) (Digest, error) {
+	n, ok := hexLen[a]
+	if !ok {
+		return Digest{}, fmt.Errorf("unknown algorithm %q: want sha256 or sha512", a)
+	}
+	norm, err := normalize(s)
+	if err != nil {
+		return Digest{}, err
+	}
+	if len(norm) != n {
+		return Digest{}, fmt.Errorf("%s needs %d hex characters, got %d", a, n, len(norm))
+	}
+	return Digest{Algorithm: a, Hex: norm}, nil
+}
+
 // Equal reports whether two digests are the same. The expected checksum is
 // public, so there is nothing here for a timing attack to learn.
 func (d Digest) Equal(o Digest) bool {
