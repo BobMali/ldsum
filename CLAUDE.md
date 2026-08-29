@@ -44,11 +44,9 @@ Anything that reaches the network fails under the Bash sandbox with a TLS certif
 
 ## Layout
 
-Standard Cobra shape and nothing more yet: `main.go` calls `cmd.Execute()`; `cmd/root.go` holds `rootCmd` and the `Execute` helper. There are no subcommands, no test files, and no non-Cobra packages so far — the checksum logic has not been written.
+`main.go` calls `os.Exit(cmd.Execute())` — `Execute` returns an `int` exit code. The `cmd/` directory holds `root.go` (the base command), `verify.go` (the verify subcommand), `exit.go` (error-to-exit-code mapping), and test files. The `internal/hash/` package computes digests from an `io.Reader` and parses checksum strings. The `internal/run/` package orchestrates verification and returns errors. Checksum-file support will arrive in `internal/checksums/` later.
 
 The module path is `github.com/BobMali/ldsum`.
-
-`cmd/root.go` still carries two pieces of Cobra boilerplate that were deliberately left in place: the commented-out `Run:` stub and a dummy `--toggle` flag registered in `init()`. Remove them when real behaviour lands.
 
 ## Rules
 

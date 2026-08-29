@@ -10,6 +10,40 @@ non-zero when it does not, so it drops into a script.
 > **Status:** early. The CLI scaffold is in place; the checksum logic is not
 > written yet.
 
+## Usage
+
+Verify a file against a checksum:
+
+```sh
+ldsum verify dist.tar.gz ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+dist.tar.gz: OK
+```
+
+When the digests differ, the expected and actual values go to stderr:
+
+```sh
+ldsum verify dist.tar.gz 0000000000000000000000000000000000000000000000000000000000000000
+dist.tar.gz: FAILED
+expected: 0000000000000000000000000000000000000000000000000000000000000000
+actual:   ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
+```
+
+The algorithm comes from the length of the checksum — 64 hex characters is
+sha256, 128 is sha512. Name it explicitly with `--algo` when you want the
+length checked too:
+
+```sh
+ldsum verify --algo sha256 dist.tar.gz ba7816bf...
+```
+
+Exit codes, so it drops into a script:
+
+| Code | Meaning |
+|------|---------|
+| 0 | the digest matched |
+| 1 | the digest did not match, or the file is missing |
+| 2 | the command was wrong: bad checksum, unknown algorithm, unreadable file |
+
 ## Requirements
 
 - Go 1.27 or newer
