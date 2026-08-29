@@ -2,9 +2,13 @@ package run
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/BobMali/ldsum/internal/hash"
 )
 
 // sha256 and sha512 of "abc", from FIPS 180-4.
@@ -54,5 +58,40 @@ func TestVerifyMatch(t *testing.T) {
 				t.Errorf("stderr = %q, want empty", errOut.String())
 			}
 		})
+	}
+}
+
+func TestVerifyMismatch(t *testing.T) {
+	path := writeFixture(t, "abc")
+	wrong := strings.Repeat("0", 64)
+	var out, errOut bytes.Buffer
+
+	err := Verify(&out, &errOut, VerifyOptions{Path: path, Expected: wrong})
+
+	var mismatch *MismatchError
+	if !errors.As(err, &mismatch) {
+		t.Fatalf("Verify() error = %v, want *MismatchError", err)
+	}
+	if mismatch.Path != path {
+		t.Errorf("Path = %q, want %q", mismatch.Path, path)
+	}
+	if mismatch.Actual.Hex != abcSHA256 {
+		t.Errorf("Actual.Hex = %q, want %q", mismatch.Actual.Hex, abcSHA256)
+	}
+	if mismatch.Expected.Hex != wrong {
+		t.Errorf("Expected.Hex = %q, want %q", mismatch.Expected.Hex, wrong)
+	}
+	if mismatch.Actual.Algorithm != hash.SHA256 {
+		t.Errorf("Actual.Algorithm = %q, want %q", mismatch.Actual.Algorithm, hash.SHA256)
+	}
+
+	if want := path + ": FAILED\n"; out.String() != want {
+		t.Errorf("stdout = %q, want %q", out.String(), want)
+	}
+	if !strings.Contains(errOut.String(), "expected: "+wrong) {
+		t.Errorf("stderr = %q, want it to contain the expected digest", errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "actual:   "+abcSHA256) {
+		t.Errorf("stderr = %q, want it to contain the actual digest", errOut.String())
 	}
 }

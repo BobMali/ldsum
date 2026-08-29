@@ -18,6 +18,18 @@ type VerifyOptions struct {
 	Algorithm string
 }
 
+// MismatchError reports a file whose digest differs from the expected one. It
+// is the one failure that means the check ran fine and the answer was no.
+type MismatchError struct {
+	Path     string
+	Expected hash.Digest
+	Actual   hash.Digest
+}
+
+func (e *MismatchError) Error() string {
+	return fmt.Sprintf("%s: checksum mismatch", e.Path)
+}
+
 // Verify streams the file at opts.Path through the hasher and reports whether
 // its digest matches opts.Expected.
 func Verify(out, errOut io.Writer, opts VerifyOptions) error {
@@ -37,8 +49,14 @@ func Verify(out, errOut io.Writer, opts VerifyOptions) error {
 		return fmt.Errorf("read %s: %w", opts.Path, err)
 	}
 
+	if !actual.Equal(expected) {
+		fmt.Fprintf(out, "%s: FAILED\n", opts.Path)
+		fmt.Fprintf(errOut, "expected: %s\n", expected.Hex)
+		fmt.Fprintf(errOut, "actual:   %s\n", actual.Hex)
+		return &MismatchError{Path: opts.Path, Expected: expected, Actual: actual}
+	}
+
 	fmt.Fprintf(out, "%s: OK\n", opts.Path)
-	_ = actual
 	return nil
 }
 
