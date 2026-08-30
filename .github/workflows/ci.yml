@@ -33,3 +33,10 @@ jobs:
 
       - name: go test
         run: go test ./...
+
+      # No .golangci.yml, so this is the default set: staticcheck, errcheck,
+      # ineffassign and unused, on top of the vet already run above.
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13.2
