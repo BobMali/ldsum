@@ -66,8 +66,8 @@ func TestExecute(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		args     []string
-		setup    func(*testing.T) string // returns a temp file path, or empty if not needed
+		args     func(path string) []string // built from the fixture path
+		setup    func(*testing.T) string    // returns a temp file path, or empty if not needed
 		wantInt  int
 		checkErr func(*testing.T, string) // function to check stderr
 	}{
@@ -80,6 +80,9 @@ func TestExecute(t *testing.T) {
 					t.Fatalf("write fixture: %v", err)
 				}
 				return path
+			},
+			args: func(path string) []string {
+				return []string{"verify", path, abcSHA256}
 			},
 			checkErr: func(t *testing.T, stderr string) {
 				if stderr != "" {
@@ -96,6 +99,9 @@ func TestExecute(t *testing.T) {
 					t.Fatalf("write fixture: %v", err)
 				}
 				return path
+			},
+			args: func(path string) []string {
+				return []string{"verify", path, strings.Repeat("0", 64)}
 			},
 			checkErr: func(t *testing.T, stderr string) {
 				// Should have expected/actual lines but NO ldsum: line
@@ -116,6 +122,9 @@ func TestExecute(t *testing.T) {
 			setup: func(t *testing.T) string {
 				return filepath.Join(t.TempDir(), "nope.txt")
 			},
+			args: func(path string) []string {
+				return []string{"verify", path, abcSHA256}
+			},
 			checkErr: func(t *testing.T, stderr string) {
 				if !strings.Contains(stderr, "ldsum:") {
 					t.Errorf("stderr = %q, want to contain 'ldsum:'", stderr)
@@ -132,6 +141,9 @@ func TestExecute(t *testing.T) {
 				}
 				return path
 			},
+			args: func(path string) []string {
+				return []string{"verify", path, "zz"}
+			},
 			checkErr: func(t *testing.T, stderr string) {
 				if !strings.Contains(stderr, "ldsum:") {
 					t.Errorf("stderr = %q, want to contain 'ldsum:'", stderr)
@@ -143,33 +155,14 @@ func TestExecute(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			var out, errOut bytes.Buffer
-			rootCmd.SetOut(&out)
-			rootCmd.SetErr(&errOut)
-			t.Cleanup(func() {
-				rootCmd.SetArgs(nil)
-				rootCmd.SetOut(nil)
-				rootCmd.SetErr(nil)
-				verifyAlgorithm = ""
-			})
+			root := newRootCmd()
+			root.SetOut(&out)
+			root.SetErr(&errOut)
 
 			filePath := tt.setup(t)
+			root.SetArgs(tt.args(filePath))
 
-			// Build args based on test case
-			var args []string
-			switch tt.name {
-			case "digests match":
-				args = []string{"verify", filePath, abcSHA256}
-			case "mismatch":
-				wrongHash := strings.Repeat("0", 64)
-				args = []string{"verify", filePath, wrongHash}
-			case "missing target file":
-				args = []string{"verify", filePath, abcSHA256}
-			case "bad checksum":
-				args = []string{"verify", filePath, "zz"}
-			}
-
-			rootCmd.SetArgs(args)
-			got := Execute()
+			got := execute(root)
 
 			if got != tt.wantInt {
 				t.Errorf("Execute() = %d, want %d", got, tt.wantInt)

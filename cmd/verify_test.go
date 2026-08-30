@@ -11,20 +11,18 @@ import (
 // sha256 of "abc", from FIPS 180-4.
 const abcSHA256 = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
 
-// runCLI drives the real command tree with buffers in place of the process
-// streams, and undoes the global state Cobra keeps between runs.
+// runCLI drives a fresh command tree with buffers in place of the process
+// streams. Each call builds its own tree, so there is no global state to undo
+// and no ordering between subtests to get right.
 func runCLI(t *testing.T, args ...string) (stdout, stderr string, err error) {
 	t.Helper()
 	var out, errOut bytes.Buffer
-	rootCmd.SetOut(&out)
-	rootCmd.SetErr(&errOut)
-	rootCmd.SetArgs(args)
-	t.Cleanup(func() {
-		rootCmd.SetArgs(nil)
-		verifyAlgorithm = ""
-	})
+	root := newRootCmd()
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetArgs(args)
 
-	err = rootCmd.Execute()
+	err = root.Execute()
 	return out.String(), errOut.String(), err
 }
 

@@ -29,11 +29,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// rootCmd represents the base command when called without any subcommands
-var rootCmd = &cobra.Command{
-	Use:   "ldsum",
-	Short: "Verify a file against its checksum",
-	Long: `ldsum quickly verifies that a file matches an expected checksum.
+// newRootCmd builds a fresh command tree. Every invocation gets its own, so
+// what one run mutates — a silenced usage flag, a bound flag value — cannot
+// leak into the next.
+func newRootCmd() *cobra.Command {
+	root := &cobra.Command{
+		Use:   "ldsum",
+		Short: "Verify a file against its checksum",
+		Long: `ldsum quickly verifies that a file matches an expected checksum.
 
 The file can be read from a local path or fetched from a URL, and the expected
 checksum can be given inline or read from a checksum file (for example the
@@ -41,19 +44,27 @@ SHA256SUMS file published alongside a release).
 
 ldsum reports whether the computed digest matches the expected one and exits
 non-zero when it does not, so it can be dropped straight into a script.`,
-	// Execute prints errors itself, so Cobra must not print a second copy.
-	SilenceErrors: true,
+		// execute prints errors itself, so Cobra must not print a second copy.
+		SilenceErrors: true,
+	}
+	root.AddCommand(newVerifyCmd())
+	return root
 }
 
-// Execute runs the command tree and returns the process exit code. It reports
-// the error itself, except for a mismatch, whose detail run has already
-// printed.
+// Execute runs the command tree and returns the process exit code.
 func Execute() int {
-	err := rootCmd.Execute()
+	return execute(newRootCmd())
+}
+
+// execute runs an already-built tree and maps its error to an exit code. It
+// reports the error itself, except for a mismatch, whose detail run has
+// already printed. Tests build their own tree so they can capture the streams.
+func execute(root *cobra.Command) int {
+	err := root.Execute()
 	if err != nil {
 		var mismatch *run.MismatchError
 		if !errors.As(err, &mismatch) {
-			fmt.Fprintf(rootCmd.ErrOrStderr(), "ldsum: %v\n", err)
+			fmt.Fprintf(root.ErrOrStderr(), "ldsum: %v\n", err)
 		}
 	}
 	return exitCode(err)
