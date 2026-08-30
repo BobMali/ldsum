@@ -254,11 +254,11 @@ func TestTestGuardOnEdits(t *testing.T) {
 	}
 	absent := filepath.Join(t.TempDir(), "absent_test.go")
 
-	edit := func(path, old, new string) map[string]any {
+	edit := func(path, old, updated string) map[string]any {
 		return map[string]any{
 			"tool_name": "Edit",
 			"tool_input": map[string]string{
-				"file_path": path, "old_string": old, "new_string": new,
+				"file_path": path, "old_string": old, "new_string": updated,
 			},
 		}
 	}

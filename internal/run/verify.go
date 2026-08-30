@@ -29,7 +29,7 @@ type MismatchError struct {
 }
 
 func (e *MismatchError) Error() string {
-	return fmt.Sprintf("%s: checksum mismatch", e.Path)
+	return e.Path + ": checksum mismatch"
 }
 
 // MissingTargetError reports that the file being verified does not exist. It

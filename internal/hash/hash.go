@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	stdhash "hash"
 	"io"
@@ -15,6 +16,8 @@ import (
 // Algorithm names a supported hash function.
 type Algorithm string
 
+// The supported algorithms. Their digest lengths are distinct, which is what
+// lets a checksum be recognised without being told which one it is.
 const (
 	SHA256 Algorithm = "sha256"
 	SHA512 Algorithm = "sha512"
@@ -101,7 +104,7 @@ func (d Digest) Equal(o Digest) bool {
 func normalize(s string) (string, error) {
 	norm := strings.ToLower(strings.TrimSpace(s))
 	if norm == "" {
-		return "", fmt.Errorf("empty checksum")
+		return "", errors.New("empty checksum")
 	}
 	if _, err := hex.DecodeString(norm); err != nil {
 		return "", fmt.Errorf("not a hex checksum: %q", norm)
