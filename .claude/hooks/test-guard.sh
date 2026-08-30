@@ -4,9 +4,12 @@
 # permission, so those turn into a prompt.
 #
 # Registered on Write|Edit, and on Bash so a shell write cannot route around it.
-# The Bash side is a guardrail, not a sandbox: it judges a command by its name,
-# so a determined obfuscation gets through. It is here to stop the accidental
-# `sed -i`, not an adversary.
+# The Bash side asks about anything it cannot positively identify as read-only,
+# so an unusual interpreter or an `eval` wrapper still prompts. Its real limit
+# is different: it only looks at commands that name a *_test.go path, so one
+# that reaches the file without naming it — `git reset --hard`, a script — goes
+# unseen. Those destroy the whole working tree rather than tests specifically,
+# and belong to a guard of their own.
 
 set -uo pipefail
 
@@ -67,7 +70,16 @@ if [ "$tool" = "Bash" ]; then
     word="${word##*/}"
 
     case "$word" in
-      cat|head|tail|less|more|grep|rg|egrep|fgrep|wc|ls|stat|file|find|realpath|basename|dirname|sort|uniq|cut|tr|nl|column|bat|diff|cmp|shasum|md5|md5sum|echo|printf)
+      cat|head|tail|less|more|grep|rg|egrep|fgrep|wc|ls|stat|file|realpath|basename|dirname|sort|uniq|cut|tr|nl|column|bat|diff|cmp|shasum|md5|md5sum|echo|printf)
+        ;;
+      find)
+        # Searching is read-only; -exec and friends make find arbitrary.
+        # " -exec" also matches -execdir, and " -ok" matches -okdir.
+        case " $segment " in
+          *" -exec"*|*" -ok"*|*" -delete"*)
+            ask "find runs a command over a test file."
+            ;;
+        esac
         ;;
       sed)
         case " $segment " in
