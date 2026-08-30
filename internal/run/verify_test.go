@@ -195,3 +195,48 @@ func TestVerifyErrors(t *testing.T) {
 		}
 	})
 }
+
+// A missing target is reported as its own type rather than as a bare
+// fs.ErrNotExist, so that a later feature opening a second file — a checksum
+// file — cannot be mistaken for the target itself going missing.
+func TestVerifyMissingTargetIsTyped(t *testing.T) {
+	t.Run("missing target", func(t *testing.T) {
+		missing := filepath.Join(t.TempDir(), "nope.txt")
+
+		err := Verify(io.Discard, io.Discard, VerifyOptions{
+			Path:     missing,
+			Expected: abcSHA256,
+		})
+
+		var target *MissingTargetError
+		if !errors.As(err, &target) {
+			t.Fatalf("Verify() error = %v, want a *MissingTargetError", err)
+		}
+		if target.Path != missing {
+			t.Errorf("Path = %q, want %q", target.Path, missing)
+		}
+		if !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("error = %v, want it to still unwrap to fs.ErrNotExist", err)
+		}
+	})
+
+	t.Run("an unreadable file is not a missing target", func(t *testing.T) {
+		if os.Geteuid() == 0 {
+			t.Skip("root reads a file whatever its mode")
+		}
+		path := writeFixture(t, "abc")
+		if err := os.Chmod(path, 0o000); err != nil {
+			t.Fatalf("chmod: %v", err)
+		}
+
+		err := Verify(io.Discard, io.Discard, VerifyOptions{
+			Path:     path,
+			Expected: abcSHA256,
+		})
+
+		var target *MissingTargetError
+		if errors.As(err, &target) {
+			t.Errorf("error = %v, want it not to be a *MissingTargetError", err)
+		}
+	})
+}

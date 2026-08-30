@@ -3,8 +3,10 @@
 package run
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 
 	"github.com/BobMali/ldsum/internal/hash"
@@ -30,6 +32,19 @@ func (e *MismatchError) Error() string {
 	return fmt.Sprintf("%s: checksum mismatch", e.Path)
 }
 
+// MissingTargetError reports that the file being verified does not exist. It
+// says which file was missing, which a bare fs.ErrNotExist cannot: once a
+// checksum file can also be named, only one of them means exit 1.
+type MissingTargetError struct {
+	Path string
+	Err  error
+}
+
+// Error delegates so the message stays exactly what the os layer produced.
+func (e *MissingTargetError) Error() string { return e.Err.Error() }
+
+func (e *MissingTargetError) Unwrap() error { return e.Err }
+
 // Verify streams the file at opts.Path through the hasher and reports whether
 // its digest matches opts.Expected.
 func Verify(out, errOut io.Writer, opts VerifyOptions) error {
@@ -40,6 +55,9 @@ func Verify(out, errOut io.Writer, opts VerifyOptions) error {
 
 	f, err := os.Open(opts.Path)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return &MissingTargetError{Path: opts.Path, Err: err}
+		}
 		return err
 	}
 	defer f.Close()

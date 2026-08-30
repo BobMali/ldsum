@@ -36,8 +36,21 @@ func TestExitCode(t *testing.T) {
 		},
 		{
 			name: "missing target file",
-			err:  fmt.Errorf("open dist.tar.gz: %w", fs.ErrNotExist),
+			err:  &run.MissingTargetError{Path: "dist.tar.gz", Err: fs.ErrNotExist},
 			want: 1,
+		},
+		{
+			name: "missing target wrapped further up",
+			err: fmt.Errorf("verify: %w",
+				&run.MissingTargetError{Path: "dist.tar.gz", Err: fs.ErrNotExist}),
+			want: 1,
+		},
+		{
+			// A bare not-exist is some other file — a checksum file, say — and
+			// failing to find that one is a usage error, not a failed check.
+			name: "some other file is missing",
+			err:  fmt.Errorf("open SHA256SUMS: %w", fs.ErrNotExist),
+			want: 2,
 		},
 		{
 			name: "bad checksum on the command line",
