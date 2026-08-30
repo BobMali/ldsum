@@ -40,3 +40,51 @@ jobs:
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.13.2
+
+  commits:
+    name: commit messages
+    runs-on: ubuntu-latest
+
+    steps:
+      # Subjects are only readable with history; the default checkout has none.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Runs githooks/commit-msg, the same script a clone runs locally, so the
+      # pattern in githooks/conventional-regex.txt stays the single source of
+      # truth. Only the new commits are checked: history predates the hook and
+      # the initial commit does not match.
+      #
+      # Not covered: a squash merge composed from the pull request title, which
+      # never appears as a commit in this range.
+      - name: check subjects
+        shell: bash
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -uo pipefail
+
+          if [ -n "${PR_BASE:-}" ]; then
+            range="$PR_BASE..HEAD"
+          elif [ -n "${PUSH_BEFORE:-}" ] &&
+               [ "$PUSH_BEFORE" != "0000000000000000000000000000000000000000" ] &&
+               git cat-file -e "${PUSH_BEFORE}^{commit}" 2>/dev/null; then
+            range="$PUSH_BEFORE..HEAD"
+          else
+            # A new branch or a force push leaves no usable base. Check the tip
+            # rather than every commit that came before the hook existed.
+            range="HEAD~1..HEAD"
+          fi
+
+          echo "checking $range"
+          failed=0
+          for sha in $(git rev-list "$range"); do
+            git log -1 --format=%s "$sha" > "$RUNNER_TEMP/subject"
+            if ! bash githooks/commit-msg "$RUNNER_TEMP/subject"; then
+              echo "  ^ $sha"
+              failed=1
+            fi
+          done
+          exit "$failed"
