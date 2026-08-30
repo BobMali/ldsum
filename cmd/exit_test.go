@@ -173,3 +173,71 @@ func TestExecute(t *testing.T) {
 		})
 	}
 }
+
+// runTree drives one fresh tree end to end, the way Execute does.
+func runTree(t *testing.T, args ...string) (stdout, stderr string, code int) {
+	t.Helper()
+	var out, errOut bytes.Buffer
+	root := newRootCmd()
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetArgs(args)
+
+	code = execute(root)
+	return out.String(), errOut.String(), code
+}
+
+// Usage text helps only while the user might still be getting the invocation
+// wrong, so it appears for an argument-count error and not for a failed check.
+// Both cases were untestable while the command tree was a package-level global
+// whose SilenceUsage flag stayed set after the first run.
+func TestExecuteUsage(t *testing.T) {
+	fixtureFile := func(t *testing.T) string {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), "payload.txt")
+		if err := os.WriteFile(path, []byte("abc"), 0o644); err != nil {
+			t.Fatalf("write fixture: %v", err)
+		}
+		return path
+	}
+
+	t.Run("argument count error shows usage", func(t *testing.T) {
+		stdout, stderr, code := runTree(t, "verify", fixtureFile(t))
+
+		if code != 2 {
+			t.Errorf("execute() = %d, want 2", code)
+		}
+		if !strings.Contains(stdout, "Usage:") {
+			t.Errorf("stdout = %q, want it to contain the usage block", stdout)
+		}
+		if !strings.Contains(stderr, "accepts 2 arg(s)") {
+			t.Errorf("stderr = %q, want the argument-count error", stderr)
+		}
+	})
+
+	t.Run("usage still shows after an earlier successful run", func(t *testing.T) {
+		if _, _, code := runTree(t, "verify", fixtureFile(t), abcSHA256); code != 0 {
+			t.Fatalf("setup run = %d, want 0", code)
+		}
+
+		stdout, _, code := runTree(t, "verify", fixtureFile(t))
+
+		if code != 2 {
+			t.Errorf("execute() = %d, want 2", code)
+		}
+		if !strings.Contains(stdout, "Usage:") {
+			t.Errorf("stdout = %q, want usage even after a successful run", stdout)
+		}
+	})
+
+	t.Run("a failed check shows no usage", func(t *testing.T) {
+		stdout, _, code := runTree(t, "verify", fixtureFile(t), strings.Repeat("0", 64))
+
+		if code != 1 {
+			t.Errorf("execute() = %d, want 1", code)
+		}
+		if strings.Contains(stdout, "Usage:") {
+			t.Errorf("stdout = %q, want no usage block on a mismatch", stdout)
+		}
+	})
+}
