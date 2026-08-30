@@ -164,3 +164,171 @@ func TestCommitMsgUnderGit(t *testing.T) {
 		t.Fatalf("commit with a valid subject failed: %v\n%s", err, out)
 	}
 }
+
+const (
+	testGuardHook     = ".claude/hooks/test-guard.sh"
+	worktreeGuardHook = ".claude/hooks/worktree-guard.sh"
+)
+
+// asksPermission runs a PreToolUse guard and reports whether it asked. These
+// guards signal by printing a decision on stdout and exiting 0, unlike
+// commit-guard, which blocks with exit 2.
+func asksPermission(t *testing.T, hook string, payload map[string]any) bool {
+	t.Helper()
+	root := repoRoot(t)
+
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("encode payload: %v", err)
+	}
+
+	cmd := exec.Command("bash", filepath.Join(root, hook))
+	cmd.Stdin = bytes.NewReader(encoded)
+	cmd.Env = append(os.Environ(), "CLAUDE_PROJECT_DIR="+root)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("hook %s failed: %v\nstderr: %s", hook, err, stderr.String())
+	}
+
+	out := stdout.String()
+	if out == "" {
+		return false
+	}
+	if !strings.Contains(out, `"permissionDecision":"ask"`) {
+		t.Fatalf("hook %s produced output that is not an ask decision: %q", hook, out)
+	}
+	return true
+}
+
+func bashPayload(command string) map[string]any {
+	return map[string]any{
+		"tool_name":  "Bash",
+		"tool_input": map[string]string{"command": command},
+	}
+}
+
+// The test guard lets a shell read a test file and asks before anything that
+// could rewrite one. Reading is judged by the command word, so a command it
+// cannot positively identify as read-only asks by default.
+func TestTestGuardOnBash(t *testing.T) {
+	tests := []struct {
+		name     string
+		command  string
+		wantsAsk bool
+	}{
+		{"running the suite names no file", "go test ./...", false},
+		{"reading a test file", "cat internal/hash/hash_test.go", false},
+		{"grepping a test file", `grep -n "func Test" internal/hash/hash_test.go`, false},
+		{"staging a test file", "git add internal/hash/hash_test.go", false},
+		{"listing unformatted files", "gofmt -l internal/hash/hash_test.go", false},
+		{"searching for test files", `find . -name "*_test.go"`, false},
+		{"a non-test source file", "sed -i '' s/a/b/ cmd/root.go", false},
+		{"editing in place", "sed -i '' s/a/b/ internal/hash/hash_test.go", true},
+		{"redirecting over a test file", "echo x > internal/hash/hash_test.go", true},
+		{"rewriting with gofmt", "gofmt -w internal/hash/hash_test.go", true},
+		{"find running a command", `find . -name "*_test.go" -exec sed -i '' s/a/b/ {} +`, true},
+		{"find deleting", `find . -name "*_test.go" -delete`, true},
+		{"an eval wrapper", `eval "sed -i '' s/a/b/ internal/hash/hash_test.go"`, true},
+		{"discarding a test file", "git checkout -- internal/hash/hash_test.go", true},
+		{"an interpreter", `python3 -c "open('internal/hash/hash_test.go','w')"`, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := asksPermission(t, testGuardHook, bashPayload(tt.command)); got != tt.wantsAsk {
+				t.Errorf("asked = %v, want %v for %q", got, tt.wantsAsk, tt.command)
+			}
+		})
+	}
+}
+
+// Creating a test file is free and so is adding to one; only a rewrite asks.
+func TestTestGuardOnEdits(t *testing.T) {
+	existing := filepath.Join(t.TempDir(), "sample_test.go")
+	const contents = "package sample\n\nfunc TestOne(t *testing.T) {}\n"
+	if err := os.WriteFile(existing, []byte(contents), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+	absent := filepath.Join(t.TempDir(), "absent_test.go")
+
+	edit := func(path, old, new string) map[string]any {
+		return map[string]any{
+			"tool_name": "Edit",
+			"tool_input": map[string]string{
+				"file_path": path, "old_string": old, "new_string": new,
+			},
+		}
+	}
+	write := func(path, content string) map[string]any {
+		return map[string]any{
+			"tool_name":  "Write",
+			"tool_input": map[string]string{"file_path": path, "content": content},
+		}
+	}
+
+	tests := []struct {
+		name     string
+		payload  map[string]any
+		wantsAsk bool
+	}{
+		{"a file that does not exist yet", write(absent, contents), false},
+		{"appending a case", edit(existing, "}\n", "}\n\nfunc TestTwo(t *testing.T) {}\n"), false},
+		{"inserting before an anchor", edit(existing, "func TestOne", "func TestTwo(t *testing.T) {}\n\nfunc TestOne"), false},
+		{"writing the file plus more", write(existing, contents+"\nfunc TestTwo(t *testing.T) {}\n"), false},
+		{"a non-test file", edit("cmd/root.go", "a", "b"), false},
+		{"renaming a test", edit(existing, "func TestOne", "func TestUno"), true},
+		{"deleting a block", edit(existing, "func TestOne(t *testing.T) {}", ""), true},
+		{"widening an assertion", edit(existing, "want: 5", "want: 55"), true},
+		{"overwriting the file", write(existing, "package sample\n"), true},
+		{"truncating the file", write(existing, contents[:20]), true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := asksPermission(t, testGuardHook, tt.payload); got != tt.wantsAsk {
+				t.Errorf("asked = %v, want %v", got, tt.wantsAsk)
+			}
+		})
+	}
+}
+
+// The worktree guard covers the two git commands that discard work with no way
+// back. The everyday undo commands are deliberately left alone.
+func TestWorktreeGuard(t *testing.T) {
+	tests := []struct {
+		name     string
+		command  string
+		wantsAsk bool
+	}{
+		{"discarding every change", "git reset --hard", true},
+		{"discarding back to a ref", "git reset --hard HEAD~1", true},
+		{"after changing directory", "cd /tmp/x && git reset --hard", true},
+		{"from another repo", "git -C /tmp/repo reset --hard", true},
+		{"deleting untracked files", "git clean -f", true},
+		{"deleting untracked directories", "git clean -fd", true},
+		{"deleting ignored files too", "git clean -xdf", true},
+		{"the long force flag", "git clean --force", true},
+		{"unstaging", "git reset HEAD~1", false},
+		{"keeping the working tree", "git reset --soft HEAD~1", false},
+		{"a dry run", "git clean -n", false},
+		{"a long dry run", "git clean --dry-run", false},
+		{"discarding one path", "git checkout -- README.md", false},
+		{"switching branch", "git checkout main", false},
+		{"restoring one path", "git restore internal/run/verify.go", false},
+		{"stashing", "git stash", false},
+		{"a subject that mentions them", `git commit -m "docs: explain reset --hard and clean -f"`, false},
+		{"reading history", "git log --oneline -5", false},
+		{"no git at all", "go test ./...", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := asksPermission(t, worktreeGuardHook, bashPayload(tt.command)); got != tt.wantsAsk {
+				t.Errorf("asked = %v, want %v for %q", got, tt.wantsAsk, tt.command)
+			}
+		})
+	}
+}
