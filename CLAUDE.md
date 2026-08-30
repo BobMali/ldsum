@@ -35,8 +35,12 @@ gofmt -l .                      # list unformatted files (should print nothing)
 go run . --help                 # run the CLI
 go test ./...                   # all tests
 go test ./cmd -run TestFoo      # a single test
+golangci-lint run               # lint; config in .golangci.yml
 cobra-cli add <name>            # scaffold a new subcommand into cmd/
 ```
+
+`golangci-lint` is not required locally — CI runs it on every push and pull
+request, alongside the three gates below.
 
 `cobra-cli` is installed at `~/go/bin/cobra-cli`. Note that files it generates are **not** gofmt-clean — run `gofmt -w` on them afterwards.
 
@@ -121,7 +125,9 @@ go vet ./...
 go test ./...
 ```
 
-If a linter is configured, `golangci-lint run` must be clean too.
+`golangci-lint run` must be clean too. It is configured (`.golangci.yml`:
+the default linters, with errcheck excluded on writer and close calls) and
+runs in CI, so a push is checked even if you do not run it locally.
 
 Never mark work as done based on reasoning about the code. Run the
 commands and report what they actually printed.
