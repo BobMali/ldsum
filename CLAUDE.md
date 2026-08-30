@@ -161,9 +161,28 @@ hook. A rejected commit is a message problem, never a reason to reach for
 One logical change per commit. A test and the code it drives belong in the
 same commit; unrelated formatting does not.
 
-Prefer a one-line message. Add a body only when the reason is too involved
-for the subject; it then explains *why*, not *what* — the diff already
-shows what changed.
+One line by default. Before adding a body, apply the test: **would a reader
+who has the diff open still be puzzled?** If not, delete it. A body that
+restates the subject, enumerates what changed, or narrates the work is noise
+— whoever reads the message has the diff.
+
+Add a body only when the reason lives *outside* the diff: a constraint a
+planned feature imposes, why an obvious alternative was rejected, how a
+subtle bug was found.
+
+```
+# earns a body
+feat(run): report a missing target as its own error type
+
+exitCode classified exit 1 by sniffing fs.ErrNotExist, which will misread a
+missing checksum file as a missing target once --sums-file exists.
+
+# does not — the diff says all of this
+fix: address the linter findings
+
+errors.New for a format-free message, concatenation over Sprintf, a doc
+comment on the algorithm constants...
+```
 
 ```
 # good
