@@ -1,0 +1,18 @@
+# Default linter set (staticcheck, errcheck, ineffassign, unused) plus the vet
+# already in the definition of done. Only the exclusions below are configured.
+version: "2"
+
+linters:
+  exclusions:
+    rules:
+      # golangci-lint v1 shipped these exclusions by default; v2 dropped them.
+      # Ignoring the byte count when writing to a handed-in io.Writer, and the
+      # close error on a file opened for reading, is ordinary Go — annotating
+      # every call with `_ =` would add noise without adding a check.
+      #
+      # Note this does mean a broken pipe on stdout goes unnoticed. Whether
+      # Verify should fail on an unwritable stream is a design question, not a
+      # lint one; it is tracked separately.
+      - linters:
+          - errcheck
+        source: '^\s*(defer .*\.Close\(\)|fmt\.Fprint(f|ln)?\()'
