@@ -223,3 +223,21 @@ func TestParseBareDigest(t *testing.T) {
 // sha512 of "abc", from FIPS 180-4.
 const abcSHA512 = "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a" +
 	"2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"
+
+// A lone digest whose length matches no algorithm is not an entry: nothing
+// downstream could hash a file with it.
+func TestParseBareDigestOfAnUnusableLength(t *testing.T) {
+	got, err := Parse(strings.NewReader("deadbeef\n"))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if len(got.Entries) != 0 {
+		t.Fatalf("Parse() Entries = %+v, want none", got.Entries)
+	}
+	if len(got.Bad) != 1 {
+		t.Fatalf("Parse() Bad = %+v, want exactly one", got.Bad)
+	}
+	if !strings.Contains(got.Bad[0].Err.Error(), "8 hex characters") {
+		t.Errorf("Bad[0].Err = %v, want it to name the unusable length", got.Bad[0].Err)
+	}
+}
