@@ -29,7 +29,9 @@ Out, deliberately:
   `Entry` back, but nothing consumes it until `--sums-file` exists.
 - URL sources. `run` takes paths today, here as in `verify`.
 - Reading from stdin as `-`.
-- Writing to a file with `-o`. Shell redirection covers it.
+- Writing to a file with `-o`. Shell redirection covers it. (Reversed on
+  2026-08-31 by request: `sum` now takes `-o`, with truncating semantics
+  matching the redirection it replaces.)
 - New hash algorithms. `--algo` exposes the sha256 and sha512 that
   `internal/hash` already has. Adding to that family is its own change,
   and is easier to justify once a command exists to exercise it.

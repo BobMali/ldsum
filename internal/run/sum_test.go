@@ -515,3 +515,91 @@ func TestSumWalksAnArgumentWithATrailingSeparator(t *testing.T) {
 		})
 	}
 }
+
+func TestSumWritesToAnOutputFile(t *testing.T) {
+	tests := []struct {
+		name     string
+		existing string
+	}{
+		{name: "a path that does not exist yet"},
+		{name: "a file already there", existing: "stale contents\n"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := sumTree(t, map[string]string{"a.txt": "abc"})
+			path := filepath.Join(root, "a.txt")
+			outPath := filepath.Join(t.TempDir(), "SHA256SUMS")
+			if tt.existing != "" {
+				if err := os.WriteFile(outPath, []byte(tt.existing), 0o644); err != nil {
+					t.Fatalf("write existing output file: %v", err)
+				}
+			}
+			var out, errOut bytes.Buffer
+
+			err := Sum(&out, &errOut, SumOptions{
+				Paths:     []string{path},
+				Algorithm: "sha256",
+				Format:    checksums.Text,
+				Output:    outPath,
+			})
+			if err != nil {
+				t.Fatalf("Sum() error = %v", err)
+			}
+			written, err := os.ReadFile(outPath)
+			if err != nil {
+				t.Fatalf("read output file: %v", err)
+			}
+			if want := abcSHA256 + "  " + path + "\n"; string(written) != want {
+				t.Errorf("output file = %q, want %q", written, want)
+			}
+			if out.String() != "" {
+				t.Errorf("stdout = %q, want empty", out.String())
+			}
+			if errOut.String() != "" {
+				t.Errorf("stderr = %q, want empty", errOut.String())
+			}
+		})
+	}
+}
+
+func TestSumReportsAnUnusableOutputFile(t *testing.T) {
+	tests := []struct {
+		name   string
+		output func(root string) string
+	}{
+		{
+			name:   "a directory that does not exist",
+			output: func(root string) string { return filepath.Join(root, "missing", "SHA256SUMS") },
+		},
+		{
+			name:   "a directory in place of the file",
+			output: func(root string) string { return root },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := sumTree(t, map[string]string{"a.txt": "abc"})
+			path := filepath.Join(root, "a.txt")
+			var out, errOut bytes.Buffer
+
+			err := Sum(&out, &errOut, SumOptions{
+				Paths:     []string{path},
+				Algorithm: "sha256",
+				Format:    checksums.Text,
+				Output:    tt.output(root),
+			})
+			if err == nil {
+				t.Fatal("Sum() error = nil, want an error naming the output file")
+			}
+			// Nothing was summed, so neither stream saw a line.
+			if out.String() != "" {
+				t.Errorf("stdout = %q, want empty", out.String())
+			}
+			if errOut.String() != "" {
+				t.Errorf("stderr = %q, want empty", errOut.String())
+			}
+		})
+	}
+}

@@ -15,6 +15,7 @@ func newSumCmd() *cobra.Command {
 		binary    bool
 		tagged    bool
 		bare      bool
+		output    string
 		recursive bool
 		verbose   bool
 	)
@@ -28,6 +29,7 @@ The default output is the GNU coreutils text format — the digest, two spaces,
 then the path — which is what a SHA256SUMS file contains. --binary marks the
 path with an asterisk instead, --tag switches to the BSD tagged format, and
 --bare prints the digest alone so it can be captured straight into a variable.
+-o writes the lines to a file instead of stdout, truncating what is there.
 
 Directory arguments are walked only with -r. A symlink named as an argument is
 followed; symlinks found by walking are not. Anything skipped is named on
@@ -52,6 +54,7 @@ stderr under -v.`,
 				Paths:     args,
 				Algorithm: algorithm,
 				Format:    format,
+				Output:    output,
 				Recursive: recursive,
 				Verbose:   verbose,
 			})
@@ -63,6 +66,7 @@ stderr under -v.`,
 	cmd.Flags().BoolVarP(&binary, "binary", "b", false, "GNU binary format: <digest> *<path>")
 	cmd.Flags().BoolVar(&tagged, "tag", false, "BSD tagged format: <ALGO> (<path>) = <digest>")
 	cmd.Flags().BoolVar(&bare, "bare", false, "the digest alone, with no path")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "write the lines to this file instead of stdout")
 	cmd.Flags().BoolVarP(&recursive, "recursive", "r", false, "walk directory arguments")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "name skipped entries on stderr")
 	cmd.MarkFlagsMutuallyExclusive("text", "binary", "tag", "bare")

@@ -48,6 +48,16 @@ too large an action to start because an argument happened to be a directory:
 ldsum sum -r ./dist > SHA256SUMS
 ```
 
+`-o` writes the lines to a file instead, truncating whatever is there:
+
+```sh
+ldsum sum -r ./dist -o SHA256SUMS
+```
+
+It behaves like the redirection above, which includes the one hazard: an output
+file inside the tree being walked exists by the time the walk reaches it, and is
+summed into its own listing. Write it outside the tree, or name the paths.
+
 A symlink named as an argument is followed — naming it is how you ask for it.
 Symlinks found by walking are not, so no file is summed twice and no cycle can
 occur. Skipped entries are silent unless `-v` names them on stderr.
@@ -82,7 +92,7 @@ Exit codes, so it drops into a script:
 |------|---------|
 | 0 | the digest matched, or every file was summed |
 | 1 | the digest did not match, or the file is missing (`verify` only) |
-| 2 | the command could not be carried out: wrong argument count, bad checksum, unknown algorithm, unreadable file, a directory without `-r` |
+| 2 | the command could not be carried out: wrong argument count, bad checksum, unknown algorithm, unreadable file, an output file that cannot be written, a directory without `-r` |
 
 ## Requirements
 

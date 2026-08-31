@@ -247,3 +247,71 @@ func TestSumCommandReportsAPartialFailure(t *testing.T) {
 		})
 	}
 }
+
+func TestSumCommandOutputFlag(t *testing.T) {
+	tests := []struct {
+		name string
+		flag string
+	}{
+		{name: "long form", flag: "--output"},
+		{name: "short form", flag: "-o"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := fixture(t, "abc")
+			outPath := filepath.Join(t.TempDir(), "SHA256SUMS")
+
+			stdout, stderr, err := runCLI(t, "sum", tt.flag, outPath, path)
+			if err != nil {
+				t.Fatalf("Execute() error = %v", err)
+			}
+			written, err := os.ReadFile(outPath)
+			if err != nil {
+				t.Fatalf("read output file: %v", err)
+			}
+			if want := abcSHA256 + "  " + path + "\n"; string(written) != want {
+				t.Errorf("output file = %q, want %q", written, want)
+			}
+			if stdout != "" {
+				t.Errorf("stdout = %q, want empty", stdout)
+			}
+			if stderr != "" {
+				t.Errorf("stderr = %q, want empty", stderr)
+			}
+		})
+	}
+}
+
+func TestSumCommandUnusableOutputFileExitsTwo(t *testing.T) {
+	tests := []struct {
+		name   string
+		output func(dir string) string
+	}{
+		{
+			name:   "a directory that does not exist",
+			output: func(dir string) string { return filepath.Join(dir, "missing", "SHA256SUMS") },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := fixture(t, "abc")
+
+			stdout, stderr, err := runCLI(t, "sum", "-o", tt.output(t.TempDir()), path)
+			if err == nil {
+				t.Fatal("Execute() error = nil, want an error")
+			}
+			if got := exitCode(err); got != 2 {
+				t.Errorf("exitCode() = %d, want 2", got)
+			}
+			if stdout != "" {
+				t.Errorf("stdout = %q, want empty", stdout)
+			}
+			// execute() prints the error; RunE only returns it.
+			if stderr != "" {
+				t.Errorf("stderr = %q, want empty", stderr)
+			}
+		})
+	}
+}
