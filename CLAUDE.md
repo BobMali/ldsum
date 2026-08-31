@@ -48,7 +48,7 @@ Anything that reaches the network fails under the Bash sandbox with a TLS certif
 
 ## Layout
 
-`main.go` calls `os.Exit(cmd.Execute())` — `Execute` returns an `int` exit code. The `cmd/` directory holds `root.go` (the base command), `verify.go` (the verify subcommand), `exit.go` (error-to-exit-code mapping), and test files. The `internal/hash/` package computes digests from an `io.Reader` and parses checksum strings. The `internal/run/` package orchestrates verification and returns errors. Checksum-file support will arrive in `internal/checksums/` later.
+`main.go` calls `os.Exit(cmd.Execute())` — `Execute` returns an `int` exit code. The `cmd/` directory holds `root.go` (the base command), `verify.go` and `sum.go` (the subcommands), `exit.go` (error-to-exit-code mapping), and test files. The `internal/hash/` package computes digests from an `io.Reader` and parses checksum strings. The `internal/checksums/` package renders checksum-file lines; parsing them arrives with `--sums-file`. The `internal/run/` package orchestrates each command and returns errors.
 
 The module path is `github.com/BobMali/ldsum`.
 

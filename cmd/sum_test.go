@@ -218,3 +218,32 @@ func TestSumCommandTagUsesTheAlgorithmName(t *testing.T) {
 		})
 	}
 }
+
+// The other sum tests call exitCode directly; this one goes through execute,
+// which is what prefixes the program name onto the summary error.
+func TestSumCommandReportsAPartialFailure(t *testing.T) {
+	tests := []struct {
+		name    string
+		missing string
+	}{
+		{name: "one good file and one missing", missing: "gone.txt"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			good := fixture(t, "abc")
+			bad := filepath.Join(filepath.Dir(good), tt.missing)
+
+			stdout, stderr, code := runTree(t, "sum", bad, good)
+			if code != 2 {
+				t.Errorf("exit code = %d, want 2", code)
+			}
+			if want := abcSHA256 + "  " + good + "\n"; stdout != want {
+				t.Errorf("stdout = %q, want %q — the good file must still be summed", stdout, want)
+			}
+			if !strings.Contains(stderr, "ldsum: could not sum 1 of 2 paths") {
+				t.Errorf("stderr = %q, want the ldsum-prefixed summary", stderr)
+			}
+		})
+	}
+}

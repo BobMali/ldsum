@@ -44,10 +44,9 @@ func newRootCmd() *cobra.Command {
 sum prints the digest of a file or a whole tree, in the GNU coreutils text and
 binary formats, the BSD tagged format, or on its own.
 
-verify checks a file against an expected checksum. The file can be read from a
-local path or fetched from a URL, and the expected checksum can be given inline
-or read from a checksum file (for example the SHA256SUMS file published
-alongside a release).
+verify checks a file against an expected checksum given on the command line.
+Reading the file from a URL, and reading the expected checksum from a checksum
+file such as a published SHA256SUMS, are planned and not yet implemented.
 
 Both exit non-zero when the answer is no, so they drop straight into a script.`,
 		// execute prints errors itself, so Cobra must not print a second copy.

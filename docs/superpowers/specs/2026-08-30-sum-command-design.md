@@ -1,7 +1,7 @@
 # Sum: print checksums for files and trees
 
 Date: 2026-08-30
-Status: designed, not yet implemented
+Status: implemented
 
 The second command. `verify` answers "does this file match a checksum I was
 given"; `sum` produces the checksum in the first place, in the formats other
@@ -233,3 +233,14 @@ Both go stale the moment this lands, so both are part of the change:
   `sum` usage section or mention of the formats.
 - `cmd/root.go` — `Short` and `Long` describe ldsum as a verification tool.
   It now does two things.
+
+## A note for `verify --sums-file`
+
+`run.Sum` builds its aggregate error with `fmt.Errorf` and no `%w`, so nothing
+is unwrapped from it. That is right here: a count of failures is genuinely a new
+error, and `sum` has no exit-1 case for `errors.As` to find.
+
+It becomes wrong the moment `verify --sums-file` aggregates several files. If it
+copies this shape, an aggregate over a set of mismatches will not satisfy
+`errors.As(err, &MismatchError{})`, and a real mismatch will exit 2 instead of
+the documented 1. Aggregate there must preserve the worst error, not replace it.

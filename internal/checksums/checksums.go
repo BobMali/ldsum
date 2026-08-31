@@ -1,5 +1,5 @@
-// Package checksums renders and parses the lines of a checksum file. It works
-// on writers and strings and knows nothing about files.
+// Package checksums renders the lines of a checksum file. It works on writers
+// and strings and knows nothing about files. Parsing arrives with --sums-file.
 package checksums
 
 import (

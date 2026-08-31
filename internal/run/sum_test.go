@@ -221,6 +221,14 @@ func TestSumWalksInLexicalOrder(t *testing.T) {
 			},
 			order: []string{"a.txt", "b.txt", "sub/c.txt"},
 		},
+		{
+			name: "a subdirectory sorting before a file comes first",
+			files: map[string]string{
+				"b.txt":    "abc",
+				"aa/x.txt": "abc",
+			},
+			order: []string{"aa/x.txt", "b.txt"},
+		},
 	}
 
 	for _, tt := range tests {
@@ -430,6 +438,79 @@ func TestSumVerboseNamesSkippedEntries(t *testing.T) {
 			}
 			if !strings.Contains(errOut.String(), tt.link) {
 				t.Errorf("stderr = %q, want it to name the skipped %q", errOut.String(), tt.link)
+			}
+		})
+	}
+}
+
+func TestSumKeepsGoingAfterATagRejection(t *testing.T) {
+	tests := []struct {
+		name string
+		odd  string
+	}{
+		{name: "a path tagged format cannot carry", odd: "we\\ird.txt"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := sumTree(t, map[string]string{
+				"a.txt": "abc",
+				tt.odd:  "abc",
+				"z.txt": "abc",
+			})
+			var out, errOut bytes.Buffer
+
+			err := Sum(&out, &errOut, SumOptions{
+				Paths:     []string{root},
+				Algorithm: "sha256",
+				Format:    checksums.Tag,
+				Recursive: true,
+			})
+			if err == nil {
+				t.Fatal("Sum() error = nil, want an error after a rejected path")
+			}
+			// The other two files are still summed: a rejection is one more
+			// per-file failure, not a reason to abandon the tree.
+			want := "SHA256 (" + filepath.Join(root, "a.txt") + ") = " + abcSHA256 + "\n" +
+				"SHA256 (" + filepath.Join(root, "z.txt") + ") = " + abcSHA256 + "\n"
+			if out.String() != want {
+				t.Errorf("stdout = %q, want %q", out.String(), want)
+			}
+			if !strings.Contains(errOut.String(), "tagged format") {
+				t.Errorf("stderr = %q, want it to explain the tagged-format limit", errOut.String())
+			}
+		})
+	}
+}
+
+func TestSumWalksAnArgumentWithATrailingSeparator(t *testing.T) {
+	tests := []struct {
+		name string
+		dir  string
+	}{
+		{name: "a plain directory", dir: "sub"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := sumTree(t, map[string]string{tt.dir + "/c.txt": "abc"})
+			// The caller's own trailing slash must not double with the one
+			// walkDir appends; filepath.Join cleans it away.
+			arg := filepath.Join(root, tt.dir) + string(filepath.Separator)
+			var out, errOut bytes.Buffer
+
+			err := Sum(&out, &errOut, SumOptions{
+				Paths:     []string{arg},
+				Algorithm: "sha256",
+				Format:    checksums.Text,
+				Recursive: true,
+			})
+			if err != nil {
+				t.Fatalf("Sum() error = %v", err)
+			}
+			want := abcSHA256 + "  " + filepath.Join(root, tt.dir, "c.txt") + "\n"
+			if out.String() != want {
+				t.Errorf("stdout = %q, want %q", out.String(), want)
 			}
 		})
 	}

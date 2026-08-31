@@ -61,7 +61,7 @@ stderr under -v.`,
 	cmd.Flags().StringVar(&algorithm, "algo", "sha256", "checksum algorithm: sha256 or sha512")
 	cmd.Flags().BoolVarP(&text, "text", "t", false, "GNU text format: <digest>  <path> (the default)")
 	cmd.Flags().BoolVarP(&binary, "binary", "b", false, "GNU binary format: <digest> *<path>")
-	cmd.Flags().BoolVar(&tagged, "tag", false, "BSD tagged format: SHA256 (<path>) = <digest>")
+	cmd.Flags().BoolVar(&tagged, "tag", false, "BSD tagged format: <ALGO> (<path>) = <digest>")
 	cmd.Flags().BoolVar(&bare, "bare", false, "the digest alone, with no path")
 	cmd.Flags().BoolVarP(&recursive, "recursive", "r", false, "walk directory arguments")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "name skipped entries on stderr")

@@ -38,7 +38,7 @@ func Sum(out, errOut io.Writer, opts SumOptions) error {
 		failures += f
 	}
 	if failures > 0 {
-		return fmt.Errorf("could not sum %d of %d files", failures, attempted)
+		return fmt.Errorf("could not sum %d of %d paths", failures, attempted)
 	}
 	return nil
 }
