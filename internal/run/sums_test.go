@@ -109,3 +109,78 @@ func TestVerifySumsMissingSumsFile(t *testing.T) {
 		t.Errorf("error = %v, want it not to be a *VerifyErrors", err)
 	}
 }
+
+func TestVerifySumsFiltersByArgument(t *testing.T) {
+	dir := t.TempDir()
+	writeIn(t, dir, "a.txt", "abc")
+	writeIn(t, dir, "b.txt", "abc")
+	writeIn(t, dir, "c.txt", "abc")
+	sums := writeIn(t, dir, "SHA256SUMS",
+		abcSHA256+"  a.txt\n"+abcSHA256+"  b.txt\n"+abcSHA256+"  c.txt\n")
+
+	var out, errOut bytes.Buffer
+	err := VerifySums(&out, &errOut, SumsOptions{
+		SumsFile: sums,
+		// Out of file order, and one of them spelled differently, to show
+		// arguments drive the order and are matched after cleaning.
+		Paths: []string{"c.txt", "./a.txt"},
+	})
+	if err != nil {
+		t.Fatalf("VerifySums() error = %v", err)
+	}
+
+	want := filepath.Join(dir, "c.txt") + ": OK\n" + filepath.Join(dir, "a.txt") + ": OK\n"
+	if out.String() != want {
+		t.Errorf("stdout = %q, want %q", out.String(), want)
+	}
+}
+
+// Naming a file the checksum file says nothing about is a wrong command, not
+// a failed check, so it must not look like a mismatch or a missing target.
+func TestVerifySumsArgumentWithNoEntry(t *testing.T) {
+	dir := t.TempDir()
+	writeIn(t, dir, "a.txt", "abc")
+	sums := writeIn(t, dir, "SHA256SUMS", abcSHA256+"  a.txt\n")
+
+	err := VerifySums(io.Discard, io.Discard, SumsOptions{
+		SumsFile: sums,
+		Paths:    []string{"b.txt"},
+	})
+	if err == nil {
+		t.Fatal("VerifySums() = nil error, want one")
+	}
+	if !strings.Contains(err.Error(), "b.txt") {
+		t.Errorf("error = %v, want it to name b.txt", err)
+	}
+	var mismatch *MismatchError
+	var missing *MissingTargetError
+	var multi *VerifyErrors
+	if errors.As(err, &mismatch) || errors.As(err, &missing) || errors.As(err, &multi) {
+		t.Errorf("error = %v, want a plain error", err)
+	}
+}
+
+// Filtering down to one file must give back exactly what verifying that one
+// file inline would have: the bare error, with no summary wrapped around it.
+// The file lists two entries on purpose — with only one, the run would return
+// the bare error whether or not the filter worked, and the test would prove
+// nothing.
+func TestVerifySumsOneTargetReturnsItsOwnError(t *testing.T) {
+	dir := t.TempDir()
+	writeIn(t, dir, "a.txt", "not abc")
+	writeIn(t, dir, "b.txt", "abc")
+	sums := writeIn(t, dir, "SHA256SUMS", abcSHA256+"  a.txt\n"+abcSHA256+"  b.txt\n")
+
+	err := VerifySums(io.Discard, io.Discard, SumsOptions{
+		SumsFile: sums,
+		Paths:    []string{"a.txt"},
+	})
+	var multi *VerifyErrors
+	if errors.As(err, &multi) {
+		t.Fatalf("error = %v, want it not to be wrapped in a *VerifyErrors", err)
+	}
+	var mismatch *MismatchError
+	if !errors.As(err, &mismatch) {
+		t.Fatalf("error = %v, want a *MismatchError", err)
+	}
+}

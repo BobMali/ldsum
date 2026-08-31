@@ -76,8 +76,31 @@ func VerifySums(out, errOut io.Writer, opts SumsOptions) error {
 // relative to the file that lists them, so the command works from anywhere.
 func selectTargets(_ io.Writer, listing checksums.Listing, opts SumsOptions) ([]target, error) {
 	base := filepath.Dir(opts.SumsFile)
-	targets := make([]target, 0, len(listing.Entries))
+
+	if len(opts.Paths) == 0 {
+		targets := make([]target, 0, len(listing.Entries))
+		for _, e := range listing.Entries {
+			targets = append(targets, target{
+				path:   filepath.Join(base, e.Path),
+				digest: e.Digest,
+			})
+		}
+		return targets, nil
+	}
+
+	// Arguments name entries as the file spells them, so the lookup is on the
+	// listed path, not on anything resolved against the working directory.
+	byPath := make(map[string]checksums.Entry, len(listing.Entries))
 	for _, e := range listing.Entries {
+		byPath[filepath.Clean(e.Path)] = e
+	}
+
+	targets := make([]target, 0, len(opts.Paths))
+	for _, p := range opts.Paths {
+		e, ok := byPath[filepath.Clean(p)]
+		if !ok {
+			return nil, fmt.Errorf("%s: no entry for %s", opts.SumsFile, p)
+		}
 		targets = append(targets, target{
 			path:   filepath.Join(base, e.Path),
 			digest: e.Digest,
