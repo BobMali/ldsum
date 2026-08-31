@@ -359,3 +359,40 @@ func TestSumWalkKeepsGoingAfterAnUnreadableFile(t *testing.T) {
 		})
 	}
 }
+
+func TestSumVerboseNamesSkippedEntries(t *testing.T) {
+	tests := []struct {
+		name string
+		link string
+	}{
+		{name: "a symlink is named", link: "link.txt"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := sumTree(t, map[string]string{"a.txt": "abc"})
+			if err := os.Symlink(filepath.Join(root, "a.txt"), filepath.Join(root, tt.link)); err != nil {
+				t.Skipf("symlinks unavailable: %v", err)
+			}
+			var out, errOut bytes.Buffer
+
+			err := Sum(&out, &errOut, SumOptions{
+				Paths:     []string{root},
+				Algorithm: "sha256",
+				Format:    checksums.Text,
+				Recursive: true,
+				Verbose:   true,
+			})
+			// Skipping is not a failure, however loudly it is reported.
+			if err != nil {
+				t.Fatalf("Sum() error = %v", err)
+			}
+			if want := abcSHA256 + "  " + filepath.Join(root, "a.txt") + "\n"; out.String() != want {
+				t.Errorf("stdout = %q, want %q", out.String(), want)
+			}
+			if !strings.Contains(errOut.String(), tt.link) {
+				t.Errorf("stderr = %q, want it to name the skipped %q", errOut.String(), tt.link)
+			}
+		})
+	}
+}

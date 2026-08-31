@@ -17,6 +17,7 @@ type SumOptions struct {
 	Algorithm string
 	Format    checksums.Format
 	Recursive bool
+	Verbose   bool
 }
 
 // Sum prints the digest of each path in opts.Paths. A file that cannot be
@@ -80,6 +81,9 @@ func walkDir(out, errOut io.Writer, root string, algo hash.Algorithm, opts SumOp
 		// Type() does not resolve links, so a symlink found by walking is
 		// skipped rather than followed. Devices and sockets go the same way.
 		if !d.Type().IsRegular() {
+			if opts.Verbose {
+				fmt.Fprintf(errOut, "%s: skipped, not a regular file\n", path)
+			}
 			return nil
 		}
 		a, f := sumFile(out, errOut, path, algo, opts.Format)
