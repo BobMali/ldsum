@@ -1,5 +1,5 @@
-// Package checksums renders the lines of a checksum file. It works on writers
-// and strings and knows nothing about files. Parsing arrives with --sums-file.
+// Package checksums renders and reads the lines of a checksum file. It works
+// on readers, writers and strings, and knows nothing about files.
 package checksums
 
 import (
@@ -25,10 +25,13 @@ const (
 	Bare
 )
 
-// Entry is one file's digest together with the path it belongs to.
+// Entry is one file's digest together with the path it belongs to. Line is
+// the 1-based line Parse read it from, and is zero for an entry that did not
+// come from a file.
 type Entry struct {
 	Digest hash.Digest
 	Path   string
+	Line   int
 }
 
 // Render writes e as a single line, including its trailing newline.
