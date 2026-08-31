@@ -52,3 +52,69 @@ func TestRenderGNU(t *testing.T) {
 		})
 	}
 }
+
+func TestRenderTagAndBare(t *testing.T) {
+	tests := []struct {
+		name   string
+		format Format
+		entry  Entry
+		want   string
+	}{
+		{
+			name:   "tag names the algorithm uppercased",
+			format: Tag,
+			entry:  abcEntry("dist/a.txt"),
+			want:   "SHA256 (dist/a.txt) = " + abcSHA256 + "\n",
+		},
+		{
+			name:   "tag uses the sha512 name for sha512",
+			format: Tag,
+			entry: Entry{
+				Digest: hash.Digest{Algorithm: hash.SHA512, Hex: "cafe"},
+				Path:   "dist/a.txt",
+			},
+			want: "SHA512 (dist/a.txt) = cafe\n",
+		},
+		{
+			name:   "bare prints the digest alone",
+			format: Bare,
+			entry:  abcEntry("dist/a.txt"),
+			want:   abcSHA256 + "\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out bytes.Buffer
+
+			if err := Render(&out, tt.entry, tt.format); err != nil {
+				t.Fatalf("Render() error = %v", err)
+			}
+			if out.String() != tt.want {
+				t.Errorf("Render() = %q, want %q", out.String(), tt.want)
+			}
+		})
+	}
+}
+
+func TestRenderUnknownFormat(t *testing.T) {
+	tests := []struct {
+		name   string
+		format Format
+	}{
+		{name: "out of range", format: Format(99)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out bytes.Buffer
+
+			if err := Render(&out, abcEntry("dist/a.txt"), tt.format); err == nil {
+				t.Fatal("Render() error = nil, want error for an unknown format")
+			}
+			if out.Len() != 0 {
+				t.Errorf("wrote %q, want nothing", out.String())
+			}
+		})
+	}
+}
