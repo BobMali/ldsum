@@ -87,8 +87,8 @@ func walkDir(out, errOut io.Writer, root string, algo hash.Algorithm, opts SumOp
 		failures += f
 		return nil
 	})
-	// The callback always returns nil, so this can only fire if WalkDir could
-	// not stat the root it was handed.
+	// WalkDir routes even a root failure through the callback, which returns nil
+	// for everything, so this is unreachable — kept so a future error is not lost.
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		attempted++
