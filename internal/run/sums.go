@@ -50,6 +50,10 @@ func VerifySums(out, errOut io.Writer, opts SumsOptions) error {
 		return err
 	}
 
+	for _, b := range listing.Bad {
+		warnLine(errOut, opts.SumsFile, b.Line, b.Err.Error())
+	}
+
 	targets, err := selectTargets(errOut, listing, opts)
 	if err != nil {
 		return err
@@ -72,14 +76,45 @@ func VerifySums(out, errOut io.Writer, opts SumsOptions) error {
 	return &VerifyErrors{Checked: len(targets), Errs: errs}
 }
 
-// selectTargets works out which files the listing asks for. Entries are
-// relative to the file that lists them, so the command works from anywhere.
-func selectTargets(_ io.Writer, listing checksums.Listing, opts SumsOptions) ([]target, error) {
+// warnLine reports a line of a checksum file that could not be used. Every
+// such warning leaves through here.
+func warnLine(errOut io.Writer, file string, line int, msg string) {
+	fmt.Fprintf(errOut, "%s:%d: %s\n", file, line, msg)
+}
+
+// selectTargets works out which files the listing asks for. The mode is a
+// property of the whole listing, not of any one line: a single pathless entry
+// is a bare-digest file, and a stray one among many is just a broken line.
+func selectTargets(errOut io.Writer, listing checksums.Listing, opts SumsOptions) ([]target, error) {
+	if len(listing.Entries) == 1 && listing.Entries[0].Path == "" {
+		if len(opts.Paths) == 0 {
+			return nil, fmt.Errorf(
+				"%s: no paths in file; name the file to verify", opts.SumsFile)
+		}
+		if len(opts.Paths) > 1 {
+			return nil, fmt.Errorf(
+				"%s: holds one checksum; name exactly one file", opts.SumsFile)
+		}
+		return []target{{path: opts.Paths[0], digest: listing.Entries[0].Digest}}, nil
+	}
+
+	named := make([]checksums.Entry, 0, len(listing.Entries))
+	for _, e := range listing.Entries {
+		if e.Path == "" {
+			warnLine(errOut, opts.SumsFile, e.Line, "checksum without a path")
+			continue
+		}
+		named = append(named, e)
+	}
+	if len(named) == 0 {
+		return nil, fmt.Errorf("%s: no checksum lines found", opts.SumsFile)
+	}
+
 	base := filepath.Dir(opts.SumsFile)
 
 	if len(opts.Paths) == 0 {
-		targets := make([]target, 0, len(listing.Entries))
-		for _, e := range listing.Entries {
+		targets := make([]target, 0, len(named))
+		for _, e := range named {
 			targets = append(targets, target{
 				path:   filepath.Join(base, e.Path),
 				digest: e.Digest,
@@ -90,8 +125,8 @@ func selectTargets(_ io.Writer, listing checksums.Listing, opts SumsOptions) ([]
 
 	// Arguments name entries as the file spells them, so the lookup is on the
 	// listed path, not on anything resolved against the working directory.
-	byPath := make(map[string]checksums.Entry, len(listing.Entries))
-	for _, e := range listing.Entries {
+	byPath := make(map[string]checksums.Entry, len(named))
+	for _, e := range named {
 		byPath[filepath.Clean(e.Path)] = e
 	}
 

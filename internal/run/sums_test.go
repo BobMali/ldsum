@@ -184,3 +184,99 @@ func TestVerifySumsOneTargetReturnsItsOwnError(t *testing.T) {
 		t.Fatalf("error = %v, want a *MismatchError", err)
 	}
 }
+
+// A file whose whole content is a digest names no file, so the caller must.
+func TestVerifySumsBareDigest(t *testing.T) {
+	dir := t.TempDir()
+	target := writeIn(t, dir, "dist.tar.gz", "abc")
+	sums := writeIn(t, dir, "dist.tar.gz.sha256", abcSHA256+"\n")
+
+	var out, errOut bytes.Buffer
+	if err := VerifySums(&out, &errOut, SumsOptions{SumsFile: sums, Paths: []string{target}}); err != nil {
+		t.Fatalf("VerifySums() error = %v", err)
+	}
+	if want := target + ": OK\n"; out.String() != want {
+		t.Errorf("stdout = %q, want %q", out.String(), want)
+	}
+}
+
+func TestVerifySumsBareDigestNeedsExactlyOneArgument(t *testing.T) {
+	dir := t.TempDir()
+	writeIn(t, dir, "dist.tar.gz", "abc")
+	sums := writeIn(t, dir, "dist.tar.gz.sha256", abcSHA256+"\n")
+
+	tests := []struct {
+		name  string
+		paths []string
+	}{
+		{name: "none", paths: nil},
+		{name: "two", paths: []string{"a", "b"}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := VerifySums(io.Discard, io.Discard, SumsOptions{SumsFile: sums, Paths: tt.paths})
+			if err == nil {
+				t.Fatal("VerifySums() = nil error, want one")
+			}
+			if !strings.Contains(err.Error(), sums) {
+				t.Errorf("error = %v, want it to name the checksum file", err)
+			}
+		})
+	}
+}
+
+// A stray pathless digest does not turn a listing into a bare-digest file.
+// It is reported like a malformed line and skipped.
+func TestVerifySumsPathlessEntryAmongMany(t *testing.T) {
+	dir := t.TempDir()
+	writeIn(t, dir, "a.txt", "abc")
+	writeIn(t, dir, "b.txt", "abc")
+	sums := writeIn(t, dir, "SHA256SUMS",
+		abcSHA256+"  a.txt\n"+abcSHA256+"\n"+abcSHA256+"  b.txt\n")
+
+	var out, errOut bytes.Buffer
+	if err := VerifySums(&out, &errOut, SumsOptions{SumsFile: sums}); err != nil {
+		t.Fatalf("VerifySums() error = %v", err)
+	}
+	if !strings.Contains(errOut.String(), sums+":2:") {
+		t.Errorf("stderr = %q, want it to name line 2 of the checksum file", errOut.String())
+	}
+	want := filepath.Join(dir, "a.txt") + ": OK\n" + filepath.Join(dir, "b.txt") + ": OK\n"
+	if out.String() != want {
+		t.Errorf("stdout = %q, want %q", out.String(), want)
+	}
+}
+
+// A line that is not a checksum is warned about and skipped; it does not by
+// itself make the run fail.
+func TestVerifySumsWarnsAboutMalformedLines(t *testing.T) {
+	dir := t.TempDir()
+	writeIn(t, dir, "a.txt", "abc")
+	sums := writeIn(t, dir, "SHA256SUMS", "not a checksum\n"+abcSHA256+"  a.txt\n")
+
+	var out, errOut bytes.Buffer
+	if err := VerifySums(&out, &errOut, SumsOptions{SumsFile: sums}); err != nil {
+		t.Fatalf("VerifySums() error = %v", err)
+	}
+	if !strings.Contains(errOut.String(), sums+":1:") {
+		t.Errorf("stderr = %q, want it to name line 1 of the checksum file", errOut.String())
+	}
+	if want := filepath.Join(dir, "a.txt") + ": OK\n"; out.String() != want {
+		t.Errorf("stdout = %q, want %q", out.String(), want)
+	}
+}
+
+// A file with nothing usable in it is a command that cannot run.
+func TestVerifySumsNoUsableLines(t *testing.T) {
+	dir := t.TempDir()
+	sums := writeIn(t, dir, "SHA256SUMS", "not a checksum\n# nor this\n")
+
+	err := VerifySums(io.Discard, io.Discard, SumsOptions{SumsFile: sums})
+	if err == nil {
+		t.Fatal("VerifySums() = nil error, want one")
+	}
+	if !strings.Contains(err.Error(), "no checksum lines") {
+		t.Errorf("error = %v, want it to say no checksum lines were found", err)
+	}
+}
