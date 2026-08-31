@@ -52,11 +52,17 @@ func Verify(out, errOut io.Writer, opts VerifyOptions) error {
 	if err != nil {
 		return fmt.Errorf("verify %s: %w", opts.Path, err)
 	}
+	return verifyEntry(out, errOut, opts.Path, expected)
+}
 
-	f, err := os.Open(opts.Path)
+// verifyEntry hashes one file and reports whether it matches. Every verdict a
+// verification prints leaves through here, so a later change to how a verdict
+// looks has one place to go.
+func verifyEntry(out, errOut io.Writer, path string, expected hash.Digest) error {
+	f, err := os.Open(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return &MissingTargetError{Path: opts.Path, Err: err}
+			return &MissingTargetError{Path: path, Err: err}
 		}
 		return err
 	}
@@ -68,13 +74,13 @@ func Verify(out, errOut io.Writer, opts VerifyOptions) error {
 	}
 
 	if !actual.Equal(expected) {
-		fmt.Fprintf(out, "%s: FAILED\n", opts.Path)
+		fmt.Fprintf(out, "%s: FAILED\n", path)
 		fmt.Fprintf(errOut, "expected: %s\n", expected.Hex)
 		fmt.Fprintf(errOut, "actual:   %s\n", actual.Hex)
-		return &MismatchError{Path: opts.Path, Expected: expected, Actual: actual}
+		return &MismatchError{Path: path, Expected: expected, Actual: actual}
 	}
 
-	fmt.Fprintf(out, "%s: OK\n", opts.Path)
+	fmt.Fprintf(out, "%s: OK\n", path)
 	return nil
 }
 
