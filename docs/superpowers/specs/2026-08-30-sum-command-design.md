@@ -105,9 +105,18 @@ is deterministic with no sorting of our own. Arguments are processed in the
 order given; within a directory, lexical order. The golden-output tests
 depend on that sentence.
 
-Only regular files are hashed. Symlinks are never followed — not to files,
-not to directories — so there are no cycles and no path appears twice. Every
-other kind of entry (symlink, fifo, socket, device) is skipped the same way.
+Only regular files are hashed. A symlink *named as an argument* is followed:
+naming a path is how the caller asks for it, so `sumPath` uses `Stat` rather
+than `Lstat`, and `walkDir` passes its root with a trailing separator so that a
+symlinked directory resolves rather than vanishing. Symlinks *found by walking*
+are not followed — `d.Type()` does not resolve them — so there are still no
+cycles and no path appears twice. Every other kind of entry (fifo, socket,
+device) is skipped the same way as a walked symlink.
+
+That distinction was missed when this section was first written: it said
+symlinks were never followed at all, which made `sum -r` on a symlinked
+directory a silent no-op that exited 0. Corrected after the behaviour was
+found by probe during implementation.
 
 A skip is silent by default and does not affect the exit code. Under
 `--verbose`, each skipped entry is named on stderr, which is where

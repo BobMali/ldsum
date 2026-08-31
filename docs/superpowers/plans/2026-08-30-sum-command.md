@@ -890,7 +890,7 @@ func sumFile(out, errOut io.Writer, path string, algo hash.Algorithm, format che
 
 	digest, err := hash.Sum(f, algo)
 	if err != nil {
-		fmt.Fprintf(errOut, "%s: %v\n", path, err)
+		fmt.Fprintln(errOut, err)
 		return 1, 1
 	}
 
@@ -1133,7 +1133,10 @@ Add `walkDir` below `sumPath`:
 func walkDir(out, errOut io.Writer, root string, algo hash.Algorithm, opts SumOptions) (int, int) {
 	var attempted, failures int
 
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	// WalkDir lstats its root, so a symlinked directory named as an argument
+	// would be skipped as non-regular. A trailing separator resolves that final
+	// link; entries found inside the tree are still never followed.
+	err := filepath.WalkDir(root+string(filepath.Separator), func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			fmt.Fprintln(errOut, err)
 			attempted++
@@ -1153,8 +1156,8 @@ func walkDir(out, errOut io.Writer, root string, algo hash.Algorithm, opts SumOp
 		failures += f
 		return nil
 	})
-	// The callback always returns nil, so this can only fire if WalkDir could
-	// not stat the root it was handed.
+	// WalkDir routes even a root failure through the callback, which returns nil
+	// for everything, so this is unreachable — kept so a future error is not lost.
 	if err != nil {
 		fmt.Fprintln(errOut, err)
 		attempted++
@@ -1570,8 +1573,9 @@ then the path — which is what a SHA256SUMS file contains. --binary marks the
 path with an asterisk instead, --tag switches to the BSD tagged format, and
 --bare prints the digest alone so it can be captured straight into a variable.
 
-Directory arguments are walked only with -r. Symlinks are never followed, and
-anything skipped is named on stderr under -v.`,
+Directory arguments are walked only with -r. A symlink named as an argument is
+followed; symlinks found by walking are not. Anything skipped is named on
+stderr under -v.`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Arguments have parsed by this point, so a later failure is not a
@@ -1724,7 +1728,8 @@ too large an action to start because an argument happened to be a directory:
 ldsum sum -r ./dist > SHA256SUMS
 ```
 
-Symlinks are never followed, so no file is summed twice and no cycle can
+A symlink named as an argument is followed — naming it is how you ask for it.
+Symlinks found by walking are not, so no file is summed twice and no cycle can
 occur. Skipped entries are silent unless `-v` names them on stderr.
 ````
 
