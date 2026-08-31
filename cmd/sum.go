@@ -29,8 +29,9 @@ then the path — which is what a SHA256SUMS file contains. --binary marks the
 path with an asterisk instead, --tag switches to the BSD tagged format, and
 --bare prints the digest alone so it can be captured straight into a variable.
 
-Directory arguments are walked only with -r. Symlinks are never followed, and
-anything skipped is named on stderr under -v.`,
+Directory arguments are walked only with -r. A symlink named as an argument is
+followed; symlinks found by walking are not. Anything skipped is named on
+stderr under -v.`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Arguments have parsed by this point, so a later failure is not a
