@@ -7,10 +7,50 @@ given inline or read from a checksum file — a `SHA256SUMS` published alongside
 a release, say. `ldsum` prints whether the computed digest matches and exits
 non-zero when it does not, so it drops into a script.
 
-> **Status:** The `verify` command works with local files and inline checksums.
-> URL input and checksum-file input are not yet implemented.
+> **Status:** `sum` computes checksums for local files and directories.
+> `verify` works with local files and inline checksums. URL input and
+> checksum-file input are not yet implemented.
 
 ## Usage
+
+### Compute a checksum
+
+```sh
+ldsum sum dist.tar.gz
+ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  dist.tar.gz
+```
+
+The default is the GNU coreutils text format, so the output is a `SHA256SUMS`
+line. Four formats are available, and they are mutually exclusive:
+
+| Flag | Output |
+|------|--------|
+| `--text`, `-t` | `<digest>  <path>` — the default |
+| `--binary`, `-b` | `<digest> *<path>` |
+| `--tag` | `SHA256 (<path>) = <digest>` |
+| `--bare` | `<digest>` alone, for `d=$(ldsum sum --bare f)` |
+
+A path containing a backslash or a newline is escaped the way coreutils does
+it: the line gains a leading `\`, a backslash becomes `\\`, and a newline
+becomes `\n`. Tagged format has no such convention, so such a path is an error
+there.
+
+`--algo` picks the algorithm, defaulting to sha256:
+
+```sh
+ldsum sum --algo sha512 dist.tar.gz
+```
+
+Directories are walked only with `-r`, which is deliberate — hashing a tree is
+too large an action to start because an argument happened to be a directory:
+
+```sh
+ldsum sum -r ./dist > SHA256SUMS
+```
+
+A symlink named as an argument is followed — naming it is how you ask for it.
+Symlinks found by walking are not, so no file is summed twice and no cycle can
+occur. Skipped entries are silent unless `-v` names them on stderr.
 
 Verify a file against a checksum:
 
@@ -40,9 +80,9 @@ Exit codes, so it drops into a script:
 
 | Code | Meaning |
 |------|---------|
-| 0 | the digest matched |
-| 1 | the digest did not match, or the file is missing |
-| 2 | the command could not be carried out: wrong argument count, bad checksum, unknown algorithm, unreadable file |
+| 0 | the digest matched, or every file was summed |
+| 1 | the digest did not match, or the file is missing (`verify` only) |
+| 2 | the command could not be carried out: wrong argument count, bad checksum, unknown algorithm, unreadable file, a directory without `-r` |
 
 ## Requirements
 

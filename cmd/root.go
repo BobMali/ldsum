@@ -38,15 +38,18 @@ import (
 func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "ldsum",
-		Short: "Verify a file against its checksum",
-		Long: `ldsum quickly verifies that a file matches an expected checksum.
+		Short: "Compute and verify file checksums",
+		Long: `ldsum computes checksums and verifies files against them.
 
-The file can be read from a local path or fetched from a URL, and the expected
-checksum can be given inline or read from a checksum file (for example the
-SHA256SUMS file published alongside a release).
+sum prints the digest of a file or a whole tree, in the GNU coreutils text and
+binary formats, the BSD tagged format, or on its own.
 
-ldsum reports whether the computed digest matches the expected one and exits
-non-zero when it does not, so it can be dropped straight into a script.`,
+verify checks a file against an expected checksum. The file can be read from a
+local path or fetched from a URL, and the expected checksum can be given inline
+or read from a checksum file (for example the SHA256SUMS file published
+alongside a release).
+
+Both exit non-zero when the answer is no, so they drop straight into a script.`,
 		// execute prints errors itself, so Cobra must not print a second copy.
 		SilenceErrors: true,
 	}
