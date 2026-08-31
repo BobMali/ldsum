@@ -79,7 +79,7 @@ The module path is `github.com/BobMali/ldsum`.
 main.go              // only: cmd.Execute() and os.Exit
 cmd/                 // cobra command wiring, flag parsing
 internal/hash/       // io.Reader -> digest; knows nothing about files
-internal/checksums/  // parse and render checksum-file lines
+internal/checksums/  // render checksum-file lines (parse with --sums-file)
 internal/run/        // orchestration; returns errors, never exits
 testdata/
 ```
