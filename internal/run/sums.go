@@ -74,7 +74,7 @@ func VerifySums(out, errOut io.Writer, opts SumsOptions) error {
 
 // selectTargets works out which files the listing asks for. Entries are
 // relative to the file that lists them, so the command works from anywhere.
-func selectTargets(errOut io.Writer, listing checksums.Listing, opts SumsOptions) ([]target, error) {
+func selectTargets(_ io.Writer, listing checksums.Listing, opts SumsOptions) ([]target, error) {
 	base := filepath.Dir(opts.SumsFile)
 	targets := make([]target, 0, len(listing.Entries))
 	for _, e := range listing.Entries {
