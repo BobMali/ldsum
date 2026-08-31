@@ -51,6 +51,7 @@ non-zero when it does not, so it can be dropped straight into a script.`,
 		SilenceErrors: true,
 	}
 	root.AddCommand(newVerifyCmd())
+	root.AddCommand(newSumCmd())
 	return root
 }
 
