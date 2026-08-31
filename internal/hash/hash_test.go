@@ -260,3 +260,24 @@ func TestParseDigestAs(t *testing.T) {
 		})
 	}
 }
+
+func TestSupported(t *testing.T) {
+	tests := []struct {
+		name string
+		algo Algorithm
+		want bool
+	}{
+		{name: "sha256", algo: SHA256, want: true},
+		{name: "sha512", algo: SHA512, want: true},
+		{name: "md5 is not supported", algo: Algorithm("md5"), want: false},
+		{name: "the empty algorithm", algo: Algorithm(""), want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := Supported(tt.algo); got != tt.want {
+				t.Errorf("Supported(%q) = %v, want %v", tt.algo, got, tt.want)
+			}
+		})
+	}
+}

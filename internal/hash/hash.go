@@ -62,6 +62,12 @@ var hexLen = map[Algorithm]int{
 	SHA512: 128,
 }
 
+// Supported reports whether a is an algorithm this package can compute.
+func Supported(a Algorithm) bool {
+	_, ok := hexLen[a]
+	return ok
+}
+
 // ParseDigest normalises s and infers the algorithm from its length.
 func ParseDigest(s string) (Digest, error) {
 	norm, err := normalize(s)
