@@ -67,7 +67,7 @@ func sumFile(out, errOut io.Writer, path string, algo hash.Algorithm, format che
 
 	digest, err := hash.Sum(f, algo)
 	if err != nil {
-		fmt.Fprintf(errOut, "%s: %v\n", path, err)
+		fmt.Fprintln(errOut, err)
 		return 1, 1
 	}
 
