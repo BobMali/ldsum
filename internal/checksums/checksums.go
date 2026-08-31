@@ -39,9 +39,21 @@ func Render(w io.Writer, e Entry, f Format) error {
 		if f == Binary {
 			marker = " *"
 		}
-		_, err := fmt.Fprintf(w, "%s%s%s\n", e.Digest.Hex, marker, e.Path)
+		// A leading backslash is how coreutils marks a line whose path was
+		// escaped, so a reader knows to unescape it.
+		prefix, path := "", e.Path
+		if needsEscape(path) {
+			prefix, path = "\\", escaper.Replace(path)
+		}
+		_, err := fmt.Fprintf(w, "%s%s%s%s\n", prefix, e.Digest.Hex, marker, path)
 		return err
 	case Tag:
+		// Tagged format has no escape convention upstream, so there is no
+		// correct line to write rather than one we invented.
+		if needsEscape(e.Path) {
+			return errors.New(e.Path +
+				": tagged format cannot carry a backslash or newline in a path")
+		}
 		_, err := fmt.Fprintf(w, "%s (%s) = %s\n",
 			strings.ToUpper(string(e.Digest.Algorithm)), e.Path, e.Digest.Hex)
 		return err
@@ -51,4 +63,15 @@ func Render(w io.Writer, e Entry, f Format) error {
 	default:
 		return errors.New("unknown checksum format " + strconv.Itoa(int(f)))
 	}
+}
+
+// escaper is stateless and safe to share; building it once keeps it off the
+// per-line path.
+var escaper = strings.NewReplacer("\\", "\\\\", "\n", "\\n")
+
+// needsEscape reports whether p holds a character a line cannot carry as
+// itself: a backslash would be ambiguous, and a newline would split the entry
+// into two malformed lines.
+func needsEscape(p string) bool {
+	return strings.ContainsAny(p, "\\\n")
 }
