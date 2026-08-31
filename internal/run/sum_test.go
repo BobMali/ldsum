@@ -360,6 +360,44 @@ func TestSumWalkKeepsGoingAfterAnUnreadableFile(t *testing.T) {
 	}
 }
 
+func TestSumWalksASymlinkedDirectoryArgument(t *testing.T) {
+	tests := []struct {
+		name string
+		link string
+	}{
+		{name: "a link named as the argument is walked", link: "linkdir"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := sumTree(t, map[string]string{"real/a.txt": "abc"})
+			link := filepath.Join(root, tt.link)
+			if err := os.Symlink(filepath.Join(root, "real"), link); err != nil {
+				t.Skipf("symlinks unavailable: %v", err)
+			}
+			var out, errOut bytes.Buffer
+
+			err := Sum(&out, &errOut, SumOptions{
+				Paths:     []string{link},
+				Algorithm: "sha256",
+				Format:    checksums.Text,
+				Recursive: true,
+			})
+			if err != nil {
+				t.Fatalf("Sum() error = %v", err)
+			}
+			// Named on purpose, so the tree is walked — and paths stay under the
+			// name the caller gave rather than the link target's.
+			if want := abcSHA256 + "  " + filepath.Join(link, "a.txt") + "\n"; out.String() != want {
+				t.Errorf("stdout = %q, want %q", out.String(), want)
+			}
+			if errOut.Len() != 0 {
+				t.Errorf("stderr = %q, want empty", errOut.String())
+			}
+		})
+	}
+}
+
 func TestSumVerboseNamesSkippedEntries(t *testing.T) {
 	tests := []struct {
 		name string

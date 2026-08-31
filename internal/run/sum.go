@@ -68,7 +68,10 @@ func sumPath(out, errOut io.Writer, path string, algo hash.Algorithm, opts SumOp
 func walkDir(out, errOut io.Writer, root string, algo hash.Algorithm, opts SumOptions) (int, int) {
 	var attempted, failures int
 
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	// WalkDir lstats its root, so a symlinked directory named as an argument
+	// would be skipped as non-regular. A trailing separator resolves that final
+	// link; entries found inside the tree are still never followed.
+	err := filepath.WalkDir(root+string(filepath.Separator), func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			fmt.Fprintln(errOut, err)
 			attempted++
