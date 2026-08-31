@@ -3,7 +3,9 @@ package run
 import (
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
 
 	"github.com/BobMali/ldsum/internal/checksums"
 	"github.com/BobMali/ldsum/internal/hash"
@@ -14,6 +16,7 @@ type SumOptions struct {
 	Paths     []string
 	Algorithm string
 	Format    checksums.Format
+	Recursive bool
 }
 
 // Sum prints the digest of each path in opts.Paths. A file that cannot be
@@ -50,10 +53,48 @@ func sumPath(out, errOut io.Writer, path string, algo hash.Algorithm, opts SumOp
 		return 1, 1
 	}
 	if info.IsDir() {
-		fmt.Fprintf(errOut, "%s: is a directory (use -r to recurse)\n", path)
-		return 1, 1
+		if !opts.Recursive {
+			fmt.Fprintf(errOut, "%s: is a directory (use -r to recurse)\n", path)
+			return 1, 1
+		}
+		return walkDir(out, errOut, path, algo, opts)
 	}
 	return sumFile(out, errOut, path, algo, opts.Format)
+}
+
+// walkDir sums every regular file under root. WalkDir reads each directory in
+// lexical order, so the output order needs no sorting of its own.
+func walkDir(out, errOut io.Writer, root string, algo hash.Algorithm, opts SumOptions) (int, int) {
+	var attempted, failures int
+
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			fmt.Fprintln(errOut, err)
+			attempted++
+			failures++
+			return nil
+		}
+		if d.IsDir() {
+			return nil
+		}
+		// Type() does not resolve links, so a symlink found by walking is
+		// skipped rather than followed. Devices and sockets go the same way.
+		if !d.Type().IsRegular() {
+			return nil
+		}
+		a, f := sumFile(out, errOut, path, algo, opts.Format)
+		attempted += a
+		failures += f
+		return nil
+	})
+	// The callback always returns nil, so this can only fire if WalkDir could
+	// not stat the root it was handed.
+	if err != nil {
+		fmt.Fprintln(errOut, err)
+		attempted++
+		failures++
+	}
+	return attempted, failures
 }
 
 // sumFile streams one file through the hasher and renders its line.

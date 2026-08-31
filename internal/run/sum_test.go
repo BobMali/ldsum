@@ -205,3 +205,157 @@ func TestSumRejectsAnUnknownAlgorithm(t *testing.T) {
 		})
 	}
 }
+
+func TestSumWalksInLexicalOrder(t *testing.T) {
+	tests := []struct {
+		name  string
+		files map[string]string
+		order []string
+	}{
+		{
+			name: "files before subdirectories, each sorted",
+			files: map[string]string{
+				"b.txt":     "abc",
+				"a.txt":     "abc",
+				"sub/c.txt": "abc",
+			},
+			order: []string{"a.txt", "b.txt", "sub/c.txt"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := sumTree(t, tt.files)
+			var want strings.Builder
+			for _, name := range tt.order {
+				want.WriteString(abcSHA256 + "  " + filepath.Join(root, name) + "\n")
+			}
+			var out, errOut bytes.Buffer
+
+			err := Sum(&out, &errOut, SumOptions{
+				Paths:     []string{root},
+				Algorithm: "sha256",
+				Format:    checksums.Text,
+				Recursive: true,
+			})
+			if err != nil {
+				t.Fatalf("Sum() error = %v", err)
+			}
+			if out.String() != want.String() {
+				t.Errorf("stdout = %q, want %q", out.String(), want.String())
+			}
+			if errOut.Len() != 0 {
+				t.Errorf("stderr = %q, want empty", errOut.String())
+			}
+		})
+	}
+}
+
+func TestSumWalkSkipsSymlinksSilently(t *testing.T) {
+	tests := []struct {
+		name string
+		link string
+	}{
+		{name: "a link beside the file it points at", link: "link.txt"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := sumTree(t, map[string]string{"a.txt": "abc"})
+			if err := os.Symlink(filepath.Join(root, "a.txt"), filepath.Join(root, tt.link)); err != nil {
+				t.Skipf("symlinks unavailable: %v", err)
+			}
+			var out, errOut bytes.Buffer
+
+			err := Sum(&out, &errOut, SumOptions{
+				Paths:     []string{root},
+				Algorithm: "sha256",
+				Format:    checksums.Text,
+				Recursive: true,
+			})
+			if err != nil {
+				t.Fatalf("Sum() error = %v", err)
+			}
+			if want := abcSHA256 + "  " + filepath.Join(root, "a.txt") + "\n"; out.String() != want {
+				t.Errorf("stdout = %q, want %q — the link must not be followed",
+					out.String(), want)
+			}
+			if errOut.Len() != 0 {
+				t.Errorf("stderr = %q, want empty without --verbose", errOut.String())
+			}
+		})
+	}
+}
+
+func TestSumWalksAnEmptyDirectory(t *testing.T) {
+	tests := []struct {
+		name string
+	}{
+		{name: "nothing to sum is not a failure"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			var out, errOut bytes.Buffer
+
+			err := Sum(&out, &errOut, SumOptions{
+				Paths:     []string{root},
+				Algorithm: "sha256",
+				Format:    checksums.Text,
+				Recursive: true,
+			})
+			if err != nil {
+				t.Fatalf("Sum() error = %v", err)
+			}
+			if out.Len() != 0 {
+				t.Errorf("stdout = %q, want nothing", out.String())
+			}
+		})
+	}
+}
+
+func TestSumWalkKeepsGoingAfterAnUnreadableFile(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can read a file with mode 000")
+	}
+	tests := []struct {
+		name       string
+		unreadable string
+	}{
+		{name: "mode 000 mid-walk", unreadable: "b-secret.txt"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := sumTree(t, map[string]string{
+				"a.txt":       "abc",
+				tt.unreadable: "abc",
+				"c.txt":       "abc",
+			})
+			if err := os.Chmod(filepath.Join(root, tt.unreadable), 0o000); err != nil {
+				t.Fatalf("chmod: %v", err)
+			}
+			var out, errOut bytes.Buffer
+
+			err := Sum(&out, &errOut, SumOptions{
+				Paths:     []string{root},
+				Algorithm: "sha256",
+				Format:    checksums.Text,
+				Recursive: true,
+			})
+			if err == nil {
+				t.Fatal("Sum() error = nil, want an error after an unreadable file")
+			}
+			want := abcSHA256 + "  " + filepath.Join(root, "a.txt") + "\n" +
+				abcSHA256 + "  " + filepath.Join(root, "c.txt") + "\n"
+			if out.String() != want {
+				t.Errorf("stdout = %q, want %q — the walk must continue past the failure",
+					out.String(), want)
+			}
+			if !strings.Contains(errOut.String(), tt.unreadable) {
+				t.Errorf("stderr = %q, want it to name %q", errOut.String(), tt.unreadable)
+			}
+		})
+	}
+}
