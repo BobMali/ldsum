@@ -28,6 +28,11 @@ type BadLine struct {
 
 var errNotChecksum = errors.New("not a checksum line")
 
+// unescaper undoes what escaper writes. Replacer makes one left-to-right pass
+// with non-overlapping matches, so the two characters of an escaped backslash
+// are never re-read as the start of an escaped newline.
+var unescaper = strings.NewReplacer(`\\`, `\`, `\n`, "\n")
+
 // Parse reads r as a checksum file. Every line is recognised on its own, so
 // one file may mix formats and algorithms. The returned error reports a
 // failure to read r; a line that is not a checksum becomes a BadLine.
@@ -64,6 +69,13 @@ func parseLine(line string) (Entry, error) {
 		return Entry{Digest: d, Path: m[2]}, nil
 	}
 
+	// A leading backslash is how coreutils marks a line whose path was
+	// escaped. Tagged lines never carry it: Render refuses such a path there.
+	escaped := strings.HasPrefix(line, `\`)
+	if escaped {
+		line = line[1:]
+	}
+
 	hexRun := leadingHex(line)
 	if hexRun == "" {
 		return Entry{}, errNotChecksum
@@ -86,6 +98,9 @@ func parseLine(line string) (Entry, error) {
 	d, err := hash.ParseDigest(hexRun)
 	if err != nil {
 		return Entry{}, err
+	}
+	if escaped {
+		path = unescaper.Replace(path)
 	}
 	return Entry{Digest: d, Path: path}, nil
 }

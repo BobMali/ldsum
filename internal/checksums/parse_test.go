@@ -1,6 +1,7 @@
 package checksums
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 
@@ -239,5 +240,122 @@ func TestParseBareDigestOfAnUnusableLength(t *testing.T) {
 	}
 	if !strings.Contains(got.Bad[0].Err.Error(), "8 hex characters") {
 		t.Errorf("Bad[0].Err = %v, want it to name the unusable length", got.Bad[0].Err)
+	}
+}
+
+// Render marks an escaped line with a leading backslash and writes \\ for a
+// backslash and \n for a newline. Parse has to undo exactly that and no more.
+func TestParseUnescapesPaths(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{
+			name: "a backslash in the path",
+			in:   `\` + abcSHA256 + `  dist\\a.txt` + "\n",
+			want: `dist\a.txt`,
+		},
+		{
+			name: "a newline in the path",
+			in:   `\` + abcSHA256 + `  a\nb` + "\n",
+			want: "a\nb",
+		},
+		{
+			name: "an escaped backslash is not the start of an escaped newline",
+			in:   `\` + abcSHA256 + `  a\\nb` + "\n",
+			want: `a\nb`,
+		},
+		{
+			name: "an unmarked line is literal",
+			in:   abcSHA256 + `  a\nb` + "\n",
+			want: `a\nb`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Parse(strings.NewReader(tt.in))
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			if len(got.Entries) != 1 {
+				t.Fatalf("Parse() Entries = %+v, Bad = %+v, want one entry", got.Entries, got.Bad)
+			}
+			if got.Entries[0].Path != tt.want {
+				t.Errorf("path = %q, want %q", got.Entries[0].Path, tt.want)
+			}
+		})
+	}
+}
+
+// The two halves of this package have to agree, so prove it rather than
+// asserting each side's idea of the line shape separately.
+func TestRenderParseRoundTrip(t *testing.T) {
+	paths := []string{
+		"dist/a.txt",
+		`dist\a.txt`,
+		"a\nb",
+		`a\nb`,
+		"*starts-with-an-asterisk",
+		"  starts-with-spaces",
+		"ends-with-spaces  ",
+	}
+
+	for _, format := range []Format{Text, Binary} {
+		for _, p := range paths {
+			t.Run(p, func(t *testing.T) {
+				var buf bytes.Buffer
+				if err := Render(&buf, Entry{Digest: abcDigest, Path: p}, format); err != nil {
+					t.Fatalf("Render() error = %v", err)
+				}
+				got, err := Parse(&buf)
+				if err != nil {
+					t.Fatalf("Parse() error = %v", err)
+				}
+				if len(got.Entries) != 1 {
+					t.Fatalf("Parse() Entries = %+v, Bad = %+v, want one entry", got.Entries, got.Bad)
+				}
+				if got.Entries[0].Path != p {
+					t.Errorf("round trip gave %q, want %q", got.Entries[0].Path, p)
+				}
+			})
+		}
+	}
+}
+
+func TestParseSkipsNoise(t *testing.T) {
+	in := "# a header comment\r\n" +
+		"\r\n" +
+		abcSHA256 + "  a.txt\r\n" +
+		"   \n" +
+		"  # an indented comment\n" +
+		"SHA512 (b.txt) = " + abcSHA512 + "\n"
+
+	got, err := Parse(strings.NewReader(in))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if len(got.Bad) != 0 {
+		t.Fatalf("Parse() Bad = %+v, want none", got.Bad)
+	}
+	if len(got.Entries) != 2 {
+		t.Fatalf("Parse() Entries = %+v, want two", got.Entries)
+	}
+	if got.Entries[0].Path != "a.txt" || got.Entries[0].Digest.Algorithm != hash.SHA256 {
+		t.Errorf("first entry = %+v, want a.txt as sha256", got.Entries[0])
+	}
+	if got.Entries[1].Path != "b.txt" || got.Entries[1].Digest.Algorithm != hash.SHA512 {
+		t.Errorf("second entry = %+v, want b.txt as sha512", got.Entries[1])
+	}
+}
+
+func TestParseEmptyFile(t *testing.T) {
+	got, err := Parse(strings.NewReader(""))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if len(got.Entries) != 0 || len(got.Bad) != 0 {
+		t.Errorf("Parse() = %+v, want an empty listing", got)
 	}
 }
