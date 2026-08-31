@@ -213,7 +213,7 @@ func TestSumWalksInLexicalOrder(t *testing.T) {
 		order []string
 	}{
 		{
-			name: "files before subdirectories, each sorted",
+			name: "a subdirectory sorting after the files comes last",
 			files: map[string]string{
 				"b.txt":     "abc",
 				"a.txt":     "abc",
