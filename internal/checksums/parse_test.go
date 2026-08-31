@@ -114,3 +114,112 @@ func TestParseNumbersEveryLine(t *testing.T) {
 		t.Errorf("bad lines = %+v, want line 2", got.Bad)
 	}
 }
+
+func TestParseTagged(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want Entry
+	}{
+		{
+			name: "sha256",
+			in:   "SHA256 (dist/a.txt) = " + abcSHA256 + "\n",
+			want: Entry{Digest: abcDigest, Path: "dist/a.txt", Line: 1},
+		},
+		{
+			name: "a lowercase algorithm name",
+			in:   "sha256 (a.txt) = " + abcSHA256 + "\n",
+			want: Entry{Digest: abcDigest, Path: "a.txt", Line: 1},
+		},
+		{
+			name: "a path containing the separator",
+			in:   "SHA256 (a) = b.txt) = " + abcSHA256 + "\n",
+			want: Entry{Digest: abcDigest, Path: "a) = b.txt", Line: 1},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Parse(strings.NewReader(tt.in))
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			if len(got.Bad) != 0 {
+				t.Fatalf("Parse() Bad = %+v, want none", got.Bad)
+			}
+			if len(got.Entries) != 1 {
+				t.Fatalf("Parse() Entries = %+v, want exactly one", got.Entries)
+			}
+			if got.Entries[0] != tt.want {
+				t.Errorf("Parse() entry = %+v, want %+v", got.Entries[0], tt.want)
+			}
+		})
+	}
+}
+
+func TestParseTaggedUnknownAlgorithm(t *testing.T) {
+	got, err := Parse(strings.NewReader("MD5 (a.txt) = d41d8cd98f00b204e9800998ecf8427e\n"))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if len(got.Entries) != 0 {
+		t.Fatalf("Parse() Entries = %+v, want none", got.Entries)
+	}
+	if len(got.Bad) != 1 {
+		t.Fatalf("Parse() Bad = %+v, want exactly one", got.Bad)
+	}
+	if !strings.Contains(got.Bad[0].Err.Error(), "md5") {
+		t.Errorf("Bad[0].Err = %v, want it to name md5", got.Bad[0].Err)
+	}
+}
+
+// A file whose whole content is a digest names no path. Parse reports that
+// as an entry with an empty Path and lets the caller decide what it means.
+func TestParseBareDigest(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want Entry
+	}{
+		{
+			name: "sha256",
+			in:   abcSHA256 + "\n",
+			want: Entry{Digest: abcDigest, Line: 1},
+		},
+		{
+			name: "sha512",
+			in:   abcSHA512 + "\n",
+			want: Entry{
+				Digest: hash.Digest{Algorithm: hash.SHA512, Hex: abcSHA512},
+				Line:   1,
+			},
+		},
+		{
+			name: "no trailing newline",
+			in:   abcSHA256,
+			want: Entry{Digest: abcDigest, Line: 1},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Parse(strings.NewReader(tt.in))
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			if len(got.Bad) != 0 {
+				t.Fatalf("Parse() Bad = %+v, want none", got.Bad)
+			}
+			if len(got.Entries) != 1 {
+				t.Fatalf("Parse() Entries = %+v, want exactly one", got.Entries)
+			}
+			if got.Entries[0] != tt.want {
+				t.Errorf("Parse() entry = %+v, want %+v", got.Entries[0], tt.want)
+			}
+		})
+	}
+}
+
+// sha512 of "abc", from FIPS 180-4.
+const abcSHA512 = "ddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a" +
+	"2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f"

@@ -4,10 +4,15 @@ import (
 	"bufio"
 	"errors"
 	"io"
+	"regexp"
 	"strings"
 
 	"github.com/BobMali/ldsum/internal/hash"
 )
+
+// taggedRE matches the BSD line shape. The path group is greedy so that a
+// path containing ") = " still leaves the real separator at the end.
+var taggedRE = regexp.MustCompile(`^([A-Za-z0-9-]+) \((.+)\) = ([0-9A-Fa-f]+)$`)
 
 // Listing is what one checksum file contained.
 type Listing struct {
@@ -51,9 +56,25 @@ func Parse(r io.Reader) (Listing, error) {
 }
 
 func parseLine(line string) (Entry, error) {
+	if m := taggedRE.FindStringSubmatch(line); m != nil {
+		d, err := hash.ParseDigestAs(m[3], hash.Algorithm(strings.ToLower(m[1])))
+		if err != nil {
+			return Entry{}, err
+		}
+		return Entry{Digest: d, Path: m[2]}, nil
+	}
+
 	hexRun := leadingHex(line)
 	if hexRun == "" {
 		return Entry{}, errNotChecksum
+	}
+	// A line that is nothing but a digest names no file; the caller has to.
+	if len(line) == len(hexRun) {
+		d, err := hash.ParseDigest(hexRun)
+		if err != nil {
+			return Entry{}, err
+		}
+		return Entry{Digest: d}, nil
 	}
 	path, ok := gnuPath(line[len(hexRun):])
 	if !ok {
