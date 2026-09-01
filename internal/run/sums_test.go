@@ -308,3 +308,58 @@ func TestVerifySumsBareDigestArityMessagesDiffer(t *testing.T) {
 		})
 	}
 }
+
+// `ldsum sum` writes an absolute path whenever it is given one, so a checksum
+// file may spell its entries absolutely. Such an entry already says where the
+// file is; joining it onto the checksum file's directory doubles it.
+func TestVerifySumsAbsoluteEntry(t *testing.T) {
+	dir := t.TempDir()
+	target := writeIn(t, dir, "a.txt", "abc")
+	sums := writeIn(t, dir, "SHA256SUMS", abcSHA256+"  "+target+"\n")
+
+	var out, errOut bytes.Buffer
+	if err := VerifySums(&out, &errOut, SumsOptions{SumsFile: sums}); err != nil {
+		t.Fatalf("VerifySums() error = %v", err)
+	}
+	if want := target + ": OK\n"; out.String() != want {
+		t.Errorf("stdout = %q, want %q", out.String(), want)
+	}
+}
+
+func TestVerifySumsAbsoluteEntryNamedAsArgument(t *testing.T) {
+	dir := t.TempDir()
+	target := writeIn(t, dir, "a.txt", "abc")
+	other := writeIn(t, dir, "b.txt", "abc")
+	sums := writeIn(t, dir, "SHA256SUMS",
+		abcSHA256+"  "+target+"\n"+abcSHA256+"  "+other+"\n")
+
+	var out, errOut bytes.Buffer
+	err := VerifySums(&out, &errOut, SumsOptions{SumsFile: sums, Paths: []string{target}})
+	if err != nil {
+		t.Fatalf("VerifySums() error = %v", err)
+	}
+	if want := target + ": OK\n"; out.String() != want {
+		t.Errorf("stdout = %q, want %q", out.String(), want)
+	}
+}
+
+// With the checksum file named without a directory the base is ".", and
+// joining an absolute entry onto it strips the leading separator instead of
+// doubling it. The result is a working-directory-relative path, so the run
+// would read whatever happens to sit there rather than the file the checksum
+// file named.
+func TestVerifySumsAbsoluteEntryWithBareSumsFileName(t *testing.T) {
+	dir := t.TempDir()
+	target := writeIn(t, dir, "a.txt", "abc")
+	writeIn(t, dir, "SHA256SUMS", abcSHA256+"  "+target+"\n")
+
+	t.Chdir(dir)
+
+	var out, errOut bytes.Buffer
+	if err := VerifySums(&out, &errOut, SumsOptions{SumsFile: "SHA256SUMS"}); err != nil {
+		t.Fatalf("VerifySums() error = %v", err)
+	}
+	if want := target + ": OK\n"; out.String() != want {
+		t.Errorf("stdout = %q, want %q", out.String(), want)
+	}
+}

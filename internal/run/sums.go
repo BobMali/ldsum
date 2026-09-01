@@ -82,6 +82,16 @@ func warnLine(errOut io.Writer, file string, line int, msg string) {
 	fmt.Fprintf(errOut, "%s:%d: %s\n", file, line, msg)
 }
 
+// resolve places a listed path against the checksum file's directory. An
+// absolute entry already says where its file is, and joining would corrupt it:
+// Join doubles the path, or strips the leading separator when base is ".".
+func resolve(base, p string) string {
+	if filepath.IsAbs(p) {
+		return p
+	}
+	return filepath.Join(base, p)
+}
+
 // selectTargets works out which files the listing asks for. The mode is a
 // property of the whole listing, not of any one line: a single pathless entry
 // is a bare-digest file, and a stray one among many is just a broken line.
@@ -116,7 +126,7 @@ func selectTargets(errOut io.Writer, listing checksums.Listing, opts SumsOptions
 		targets := make([]target, 0, len(named))
 		for _, e := range named {
 			targets = append(targets, target{
-				path:   filepath.Join(base, e.Path),
+				path:   resolve(base, e.Path),
 				digest: e.Digest,
 			})
 		}
@@ -137,7 +147,7 @@ func selectTargets(errOut io.Writer, listing checksums.Listing, opts SumsOptions
 			return nil, fmt.Errorf("%s: no entry for %s", opts.SumsFile, p)
 		}
 		targets = append(targets, target{
-			path:   filepath.Join(base, e.Path),
+			path:   resolve(base, e.Path),
 			digest: e.Digest,
 		})
 	}
