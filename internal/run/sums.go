@@ -1,8 +1,10 @@
 package run
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -47,6 +49,13 @@ func VerifySums(out, errOut io.Writer, opts SumsOptions) error {
 
 	listing, err := checksums.Parse(f)
 	if err != nil {
+		// The scanner knows nothing about the file it was handed, so its own
+		// errors arrive bare. A failed read is already an *fs.PathError and
+		// must not gain a second copy of the operation and path.
+		var pathErr *fs.PathError
+		if !errors.As(err, &pathErr) {
+			err = fmt.Errorf("read %s: %w", opts.SumsFile, err)
+		}
 		return err
 	}
 

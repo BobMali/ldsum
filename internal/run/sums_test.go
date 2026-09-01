@@ -402,3 +402,24 @@ func TestVerifySumsNamesADirectoryTarget(t *testing.T) {
 		t.Errorf("stdout = %q, want it to contain %q", out.String(), want)
 	}
 }
+
+// bufio.Scanner refuses a line longer than 64KiB, and its error names neither
+// the operation nor the file, so this is the one Parse failure that has to be
+// given context.
+func TestVerifySumsNamesTheFileWhenParsingFails(t *testing.T) {
+	dir := t.TempDir()
+	sums := writeIn(t, dir, "SHA256SUMS",
+		abcSHA256+"  "+strings.Repeat("a", 70000)+"\n")
+
+	err := VerifySums(io.Discard, io.Discard, SumsOptions{SumsFile: sums})
+	if err == nil {
+		t.Fatal("VerifySums() = nil error, want one")
+	}
+	if !strings.Contains(err.Error(), sums) {
+		t.Errorf("error = %v, want it to name the checksum file", err)
+	}
+	var multi *VerifyErrors
+	if errors.As(err, &multi) {
+		t.Errorf("error = %v, want a plain error rather than a *VerifyErrors", err)
+	}
+}
