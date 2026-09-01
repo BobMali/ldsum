@@ -86,6 +86,7 @@ func TestVerifyArgumentCounts(t *testing.T) {
 // naming one on the command line could only contradict it.
 func TestVerifyAlgoAndSumsFileAreExclusive(t *testing.T) {
 	dir := t.TempDir()
+	writeIn(t, dir, "a.txt", "abc")
 	sums := writeIn(t, dir, "SHA256SUMS", abcSHA256+"  a.txt\n")
 
 	if _, _, err := runCLI(t, "verify", "--algo", "sha256", "-c", sums); err == nil {
