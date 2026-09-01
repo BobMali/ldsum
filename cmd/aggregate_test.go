@@ -43,6 +43,14 @@ func TestExitCodeAggregates(t *testing.T) {
 			want: 2,
 		},
 		{
+			name: "an unreadable file listed before a mismatch",
+			err: &run.VerifyErrors{Checked: 2, Errs: []error{
+				fmt.Errorf("read a.txt: %w", fs.ErrPermission),
+				&run.MismatchError{Path: "b.txt"},
+			}},
+			want: 2,
+		},
+		{
 			name: "an aggregate holding nothing is still a failure",
 			err:  &run.VerifyErrors{},
 			want: 2,
