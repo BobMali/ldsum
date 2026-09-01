@@ -12,12 +12,27 @@ func exitCode(err error) int {
 	if err == nil {
 		return 0
 	}
+	// Tested before the single-error arms, not after: errors.As walks
+	// Unwrap() []error, so an aggregate holding a mismatch matches those arms
+	// too and would report 1 however bad the rest of the run went.
+	var multi *run.VerifyErrors
+	if errors.As(err, &multi) {
+		worst := 0
+		for _, e := range multi.Errs {
+			if code := exitCode(e); code > worst {
+				worst = code
+			}
+		}
+		if worst == 0 {
+			// A non-nil error must never report success.
+			return 2
+		}
+		return worst
+	}
 	var (
 		mismatch *run.MismatchError
 		missing  *run.MissingTargetError
 	)
-	// Order is unobservable while both arms return 1. It stops being so once a
-	// run can report several files at once: the worse code should win then.
 	switch {
 	case errors.As(err, &mismatch):
 		return 1

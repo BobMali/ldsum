@@ -63,13 +63,21 @@ func Execute() int {
 }
 
 // execute runs an already-built tree and maps its error to an exit code. It
-// reports the error itself, except for a mismatch, whose detail run has
-// already printed. Tests build their own tree so they can capture the streams.
+// reports the error itself, except for a single mismatch, whose detail run
+// has already printed. Tests build their own tree so they can capture the
+// streams.
 func execute(root *cobra.Command) int {
 	err := root.Execute()
 	if err != nil {
-		var mismatch *run.MismatchError
-		if !errors.As(err, &mismatch) {
+		var (
+			mismatch *run.MismatchError
+			multi    *run.VerifyErrors
+		)
+		// An aggregate is checked too, because errors.As walks Unwrap()
+		// []error: one holding a mismatch would otherwise take the silent
+		// path and lose the only line that says how many files failed.
+		silent := errors.As(err, &mismatch) && !errors.As(err, &multi)
+		if !silent {
 			fmt.Fprintf(root.ErrOrStderr(), "ldsum: %v\n", err)
 		}
 	}
