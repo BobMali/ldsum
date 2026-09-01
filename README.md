@@ -111,15 +111,15 @@ ldsum verify -c ~/downloads/SHA256SUMS      # no need to cd first
 ```
 
 An entry spelled as an absolute path is used as it stands, since it already
-says where its file is. That is what makes `ldsum sum` and `ldsum verify`
-interoperate whichever way the paths were written:
+says where its file is, so a listing `ldsum sum` wrote from absolute paths
+reads back wherever it is kept:
 
 ```sh
 ldsum sum /srv/dist/app.tar.gz > SUMS
 ldsum verify -c SUMS
 ```
 
-This is the one place `ldsum` differs from `sha256sum -c`, which resolves
+This is the main place `ldsum` differs from `sha256sum -c`, which resolves
 against the working directory.
 
 Naming files checks only those entries, in the order given:
@@ -134,6 +134,11 @@ A file that holds a bare digest names nothing, so name the file yourself:
 ldsum verify -c dist.tar.gz.sha256 dist.tar.gz
 ```
 
+A symlink listed in a checksum file is followed, the same as one named on the
+command line. The reason differs, though: `ldsum sum` follows a named symlink
+because naming it is how you asked for it, and under `-c` it is the file doing
+the naming rather than you.
+
 A mismatch does not stop the run: every file is reported and the summary goes
 to stderr.
 
@@ -141,6 +146,8 @@ to stderr.
 ldsum verify -c SHA256SUMS
 dist.tar.gz: OK
 docs.pdf: FAILED
+expected: 0000000000000000000000000000000000000000000000000000000000000000
+actual:   ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
 ldsum: 1 of 2 files failed
 ```
 
@@ -148,7 +155,9 @@ Lines that are not checksums are named on stderr and skipped; a file with no
 usable lines is an error. `--algo` and `--sums-file` cannot be combined —
 the file says which algorithm each entry uses.
 
-Exit codes, so it drops into a script:
+## Exit codes
+
+Both subcommands exit so they drop straight into a script:
 
 | Code | Meaning |
 |------|---------|
