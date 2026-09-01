@@ -36,11 +36,18 @@ go run . --help                 # run the CLI
 go test ./...                   # all tests
 go test ./cmd -run TestFoo      # a single test
 golangci-lint run               # lint; config in .golangci.yml
+gremlins unleash                # mutation testing; config in .gremlins.yaml
 cobra-cli add <name>            # scaffold a new subcommand into cmd/
 ```
 
-`golangci-lint` is not required locally — CI runs it on every push and pull
-request, alongside the three gates below.
+`golangci-lint` and `gremlins` are not required locally — CI runs both on every
+push and pull request, alongside the three gates below.
+
+`gremlins unleash` takes about 40 seconds and exits 10 when a threshold is
+breached. Its thresholds only work from `.gremlins.yaml`; the `--threshold-*`
+flags are accepted and silently ignored. A mutant that survives means a
+behaviour has no test holding it in place — see the testing rules below for
+what to do about one.
 
 `cobra-cli` is installed at `~/go/bin/cobra-cli`. Note that files it generates are **not** gofmt-clean — run `gofmt -w` on them afterwards.
 
@@ -73,6 +80,12 @@ The module path is `github.com/BobMali/ldsum`.
   line mechanically: an edit that only adds whole lines passes through,
   while rewriting, renaming, deleting or overwriting existing test text
   becomes a permission prompt.
+- **A surviving mutant is a missing test.** Add the test that kills it.
+  Lowering a threshold in `.gremlins.yaml`, excluding the file, or weakening
+  an existing assertion are all the wrong move. Where a mutant is genuinely
+  equivalent — the mutated code cannot behave differently — prefer rewriting
+  the line so there is nothing to mutate (`worst = max(worst, code)` in
+  `cmd/exit.go` is the worked example) over recording an exception.
 ### Structure
 
 ```
@@ -128,6 +141,9 @@ go test ./...
 `golangci-lint run` must be clean too. It is configured (`.golangci.yml`:
 the default linters, with errcheck excluded on writer and close calls) and
 runs in CI, so a push is checked even if you do not run it locally.
+
+`gremlins unleash` must exit 0 as well. It runs in CI on the same terms; a
+change that touches `internal/` is worth running it against locally first.
 
 Never mark work as done based on reasoning about the code. Run the
 commands and report what they actually printed.

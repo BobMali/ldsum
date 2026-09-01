@@ -211,3 +211,23 @@ go test ./...
 ```
 
 All four pass before a change is done.
+
+### Mutation testing
+
+CI also runs [gremlins](https://github.com/go-gremlins/gremlins), which edits
+the source in small ways and fails if the tests still pass. A surviving mutant
+means some behaviour has no test holding it in place.
+
+```sh
+go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
+gremlins unleash    # about 40 seconds; exit 10 means a threshold was breached
+```
+
+Settings and the thresholds live in `.gremlins.yaml`. Run it locally before a
+push that touches `internal/`, or let CI find it.
+
+A survivor is a missing test, not a reason to change an existing one. If you
+believe a mutant is genuinely equivalent — the mutated code cannot behave
+differently, whatever the test — say so on the pull request rather than lowering
+the threshold. Rewriting the line so there is nothing left to mutate is usually
+better than either.
