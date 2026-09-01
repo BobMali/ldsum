@@ -5,24 +5,49 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// newVerifyCmd builds the verify subcommand. The algorithm flag binds to a
-// local, so two trees in the same process never share it.
+// newVerifyCmd builds the verify subcommand. Every flag binds to a local, so
+// two trees in the same process never share them.
 func newVerifyCmd() *cobra.Command {
-	var algorithm string
+	var (
+		algorithm string
+		sumsFile  string
+	)
 
 	cmd := &cobra.Command{
-		Use:   "verify <file> <checksum>",
+		Use:   "verify [<file> <checksum>]",
 		Short: "Verify a file against an expected checksum",
-		Long: `Verify checks a file against a checksum given on the command line.
+		Long: `Verify checks files against the checksums they are expected to have.
 
-The algorithm is taken from the length of the checksum — 64 hex characters is
-sha256, 128 is sha512 — unless --algo names one. It exits 0 when the digest
-matches, 1 when it does not, and 2 when the command itself was wrong.`,
-		Args: cobra.ExactArgs(2),
+Given a file and a checksum, it checks that one file. The algorithm is taken
+from the length of the checksum — 64 hex characters is sha256, 128 is sha512 —
+unless --algo names one.
+
+Given --sums-file, it reads the expected checksums from a checksum file
+instead, recognising the GNU text and binary formats, the BSD tagged format,
+and a file holding a bare digest. Entries are resolved relative to the
+checksum file, so the command works from any directory. Naming files after
+the flag checks only those entries; naming none checks them all.
+
+It exits 0 when every digest matched, 1 when one did not or a file is
+missing, and 2 when the command itself was wrong.`,
+		Args: func(cmd *cobra.Command, args []string) error {
+			// With a checksum file the arguments pick entries out of it, so
+			// any number is meaningful, including none.
+			if sumsFile != "" {
+				return nil
+			}
+			return cobra.ExactArgs(2)(cmd, args)
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Arguments have parsed by this point, so a later failure is not a usage
 			// problem and usage text would only bury the verdict.
 			cmd.SilenceUsage = true
+			if sumsFile != "" {
+				return run.VerifySums(cmd.OutOrStdout(), cmd.ErrOrStderr(), run.SumsOptions{
+					SumsFile: sumsFile,
+					Paths:    args,
+				})
+			}
 			return run.Verify(cmd.OutOrStdout(), cmd.ErrOrStderr(), run.VerifyOptions{
 				Path:      args[0],
 				Expected:  args[1],
@@ -33,6 +58,9 @@ matches, 1 when it does not, and 2 when the command itself was wrong.`,
 
 	cmd.Flags().StringVar(&algorithm, "algo", "",
 		"checksum algorithm: sha256 or sha512 (inferred from the checksum length when omitted)")
+	cmd.Flags().StringVarP(&sumsFile, "sums-file", "c", "",
+		"read the expected checksums from this file")
+	cmd.MarkFlagsMutuallyExclusive("algo", "sums-file")
 
 	return cmd
 }
