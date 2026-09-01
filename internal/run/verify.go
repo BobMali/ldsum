@@ -61,6 +61,9 @@ func Verify(out, errOut io.Writer, opts VerifyOptions) error {
 func verifyEntry(out, errOut io.Writer, path string, expected hash.Digest) error {
 	f, err := os.Open(path)
 	if err != nil {
+		// A file that cannot be read gets a verdict like any other, so a run
+		// over many files names it rather than only counting it.
+		fmt.Fprintf(out, "%s: FAILED open or read\n", path)
 		if errors.Is(err, fs.ErrNotExist) {
 			return &MissingTargetError{Path: path, Err: err}
 		}
@@ -70,6 +73,9 @@ func verifyEntry(out, errOut io.Writer, path string, expected hash.Digest) error
 
 	actual, err := hash.Sum(f, expected.Algorithm)
 	if err != nil {
+		// A directory opens cleanly and fails only here, so this site needs the
+		// same verdict as the one above.
+		fmt.Fprintf(out, "%s: FAILED open or read\n", path)
 		return err
 	}
 

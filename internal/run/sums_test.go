@@ -363,3 +363,42 @@ func TestVerifySumsAbsoluteEntryWithBareSumsFileName(t *testing.T) {
 		t.Errorf("stdout = %q, want %q", out.String(), want)
 	}
 }
+
+// A file that cannot be read has to be named, not merely counted: the summary
+// alone says how many failed and not which.
+func TestVerifySumsNamesAnUnreadableTarget(t *testing.T) {
+	dir := t.TempDir()
+	writeIn(t, dir, "ok.txt", "abc")
+	sums := writeIn(t, dir, "SHA256SUMS",
+		abcSHA256+"  ok.txt\n"+abcSHA256+"  gone.txt\n")
+
+	var out, errOut bytes.Buffer
+	if err := VerifySums(&out, &errOut, SumsOptions{SumsFile: sums}); err == nil {
+		t.Fatal("VerifySums() = nil error, want one")
+	}
+	want := filepath.Join(dir, "gone.txt") + ": FAILED open or read\n"
+	if !strings.Contains(out.String(), want) {
+		t.Errorf("stdout = %q, want it to contain %q", out.String(), want)
+	}
+}
+
+// A directory opens without error and fails only when it is read, so it
+// reaches a different site in verifyEntry than a missing file does.
+func TestVerifySumsNamesADirectoryTarget(t *testing.T) {
+	dir := t.TempDir()
+	writeIn(t, dir, "ok.txt", "abc")
+	if err := os.Mkdir(filepath.Join(dir, "sub"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	sums := writeIn(t, dir, "SHA256SUMS",
+		abcSHA256+"  ok.txt\n"+abcSHA256+"  sub\n")
+
+	var out, errOut bytes.Buffer
+	if err := VerifySums(&out, &errOut, SumsOptions{SumsFile: sums}); err == nil {
+		t.Fatal("VerifySums() = nil error, want one")
+	}
+	want := filepath.Join(dir, "sub") + ": FAILED open or read\n"
+	if !strings.Contains(out.String(), want) {
+		t.Errorf("stdout = %q, want it to contain %q", out.String(), want)
+	}
+}
