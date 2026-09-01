@@ -280,3 +280,31 @@ func TestVerifySumsNoUsableLines(t *testing.T) {
 		t.Errorf("error = %v, want it to say no checksum lines were found", err)
 	}
 }
+
+// The two arity errors say different things on purpose: with no argument the
+// file simply names nothing, while with several the command named too many.
+func TestVerifySumsBareDigestArityMessagesDiffer(t *testing.T) {
+	dir := t.TempDir()
+	sums := writeIn(t, dir, "dist.tar.gz.sha256", abcSHA256+"\n")
+
+	tests := []struct {
+		name  string
+		paths []string
+		want  string
+	}{
+		{name: "none", paths: nil, want: "no paths in file"},
+		{name: "two", paths: []string{"a", "b"}, want: "name exactly one file"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := VerifySums(io.Discard, io.Discard, SumsOptions{SumsFile: sums, Paths: tt.paths})
+			if err == nil {
+				t.Fatal("VerifySums() = nil error, want one")
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("error = %v, want it to contain %q", err, tt.want)
+			}
+		})
+	}
+}
