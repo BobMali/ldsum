@@ -19,9 +19,7 @@ func exitCode(err error) int {
 	if errors.As(err, &multi) {
 		worst := 0
 		for _, e := range multi.Errs {
-			if code := exitCode(e); code > worst {
-				worst = code
-			}
+			worst = max(worst, exitCode(e))
 		}
 		if worst == 0 {
 			// A non-nil error must never report success.
