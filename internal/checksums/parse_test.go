@@ -359,3 +359,34 @@ func TestParseEmptyFile(t *testing.T) {
 		t.Errorf("Parse() = %+v, want an empty listing", got)
 	}
 }
+
+// leadingHex and isHexDigit decide where a digest ends, so their boundaries are
+// tested directly: through Parse every one of these cases is just a BadLine,
+// which makes a wrong boundary invisible.
+func TestLeadingHex(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "empty input", in: "", want: ""},
+		{name: "every hex byte", in: "0123456789abcdefABCDEF", want: "0123456789abcdefABCDEF"},
+		{name: "stops at the first non-hex byte", in: "abcz", want: "abc"},
+		{name: "a non-hex first byte yields nothing", in: "zzz", want: ""},
+		// Each of these is the byte immediately past one arm's upper bound.
+		{name: "colon is one past 9", in: "9:", want: "9"},
+		{name: "g is one past f", in: "fg", want: "f"},
+		{name: "capital G is one past F", in: "FG", want: "F"},
+		// A space is below every arm's lower bound, and is what separates a
+		// real digest from its path.
+		{name: "space is below every range", in: "0 1", want: "0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := leadingHex(tt.in); got != tt.want {
+				t.Errorf("leadingHex(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
