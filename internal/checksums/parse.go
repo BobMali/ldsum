@@ -107,8 +107,9 @@ func parseLine(line string) (Entry, error) {
 
 // gnuPath splits the path off what follows a GNU-format digest. Two spaces
 // mean text and " *" means binary; a single space is accepted too, because
-// tools that emit one separator instead of two are common. The two-space case
-// is tested first, so a path that itself starts with an asterisk survives.
+// tools that emit one separator instead of two are common. The single-space
+// case is tested last, which is what lets a path that itself begins with an
+// asterisk survive.
 func gnuPath(rest string) (string, bool) {
 	switch {
 	case strings.HasPrefix(rest, "  "):
