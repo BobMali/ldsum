@@ -1,6 +1,7 @@
 package hash
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
@@ -277,6 +278,48 @@ func TestSupported(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := Supported(tt.algo); got != tt.want {
 				t.Errorf("Supported(%q) = %v, want %v", tt.algo, got, tt.want)
+			}
+		})
+	}
+}
+
+// errReader hands over prefix and then fails, which is how a read error
+// partway through a stream reaches Sum. This is an io.Reader rather than a
+// mock: the rules ask for readers, not stubs of the standard library.
+type errReader struct {
+	prefix string
+	n      int
+	err    error
+}
+
+func (r *errReader) Read(p []byte) (int, error) {
+	if r.n < len(r.prefix) {
+		n := copy(p, r.prefix[r.n:])
+		r.n += n
+		return n, nil
+	}
+	return 0, r.err
+}
+
+func TestSumReportsAReadFailure(t *testing.T) {
+	wantErr := errors.New("the device went away")
+	tests := []struct {
+		name   string
+		prefix string
+	}{
+		{name: "the reader fails immediately"},
+		{name: "the reader fails partway through", prefix: "abc"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Sum(&errReader{prefix: tt.prefix, err: wantErr}, SHA256)
+			if !errors.Is(err, wantErr) {
+				t.Fatalf("Sum() error = %v, want %v", err, wantErr)
+			}
+			// A partial digest is worse than no digest: it looks like an answer.
+			if got != (Digest{}) {
+				t.Errorf("Digest = %+v, want the zero value on failure", got)
 			}
 		})
 	}
