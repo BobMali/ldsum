@@ -48,7 +48,7 @@ Anything that reaches the network fails under the Bash sandbox with a TLS certif
 
 ## Layout
 
-`main.go` calls `os.Exit(cmd.Execute())` — `Execute` returns an `int` exit code. The `cmd/` directory holds `root.go` (the base command), `verify.go` and `sum.go` (the subcommands), `exit.go` (error-to-exit-code mapping), and test files. The `internal/hash/` package computes digests from an `io.Reader` and parses checksum strings. The `internal/checksums/` package renders checksum-file lines; parsing them arrives with `--sums-file`. The `internal/run/` package orchestrates each command and returns errors.
+`main.go` calls `os.Exit(cmd.Execute())` — `Execute` returns an `int` exit code. The `cmd/` directory holds `root.go` (the base command), `verify.go` and `sum.go` (the subcommands), `exit.go` (error-to-exit-code mapping), and test files. The `internal/hash/` package computes digests from an `io.Reader` and parses checksum strings. The `internal/checksums/` package renders and parses checksum-file lines. The `internal/run/` package orchestrates each command and returns errors.
 
 The module path is `github.com/BobMali/ldsum`.
 
@@ -79,7 +79,7 @@ The module path is `github.com/BobMali/ldsum`.
 main.go              // only: cmd.Execute() and os.Exit
 cmd/                 // cobra command wiring, flag parsing
 internal/hash/       // io.Reader -> digest; knows nothing about files
-internal/checksums/  // render checksum-file lines (parse with --sums-file)
+internal/checksums/  // render and parse checksum-file lines
 internal/run/        // orchestration; returns errors, never exits
 testdata/
 ```

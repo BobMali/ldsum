@@ -8,8 +8,8 @@ a release, say. `ldsum` prints whether the computed digest matches and exits
 non-zero when it does not, so it drops into a script.
 
 > **Status:** `sum` computes checksums for local files and directories.
-> `verify` works with local files and inline checksums. URL input and
-> checksum-file input are not yet implemented.
+> `verify` works with local files, given a checksum inline or read from a
+> checksum file. URL input is not yet implemented.
 
 ## Usage
 
@@ -86,13 +86,75 @@ length checked too:
 ldsum verify --algo sha256 dist.tar.gz ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
 ```
 
+### Verify against a checksum file
+
+`--sums-file`, or `-c`, reads the expected checksums from a file:
+
+```sh
+ldsum verify -c SHA256SUMS
+dist.tar.gz: OK
+docs.pdf: OK
+```
+
+The format is recognised per line, so a file may mix them: the GNU text
+(`<digest>  <path>`) and binary (`<digest> *<path>`) formats, the BSD tagged
+format (`SHA256 (<path>) = <digest>`), and a file holding nothing but a
+digest. Escaped paths are unescaped, so anything `ldsum sum` writes can be
+read straight back.
+
+Entries resolve relative to **the checksum file's directory**, not the working
+directory — a published `SHA256SUMS` sits beside the files it describes, so
+that is what its paths mean:
+
+```sh
+ldsum verify -c ~/downloads/SHA256SUMS      # no need to cd first
+```
+
+An entry spelled as an absolute path is used as it stands, since it already
+says where its file is. That is what makes `ldsum sum` and `ldsum verify`
+interoperate whichever way the paths were written:
+
+```sh
+ldsum sum /srv/dist/app.tar.gz > SUMS
+ldsum verify -c SUMS
+```
+
+This is the one place `ldsum` differs from `sha256sum -c`, which resolves
+against the working directory.
+
+Naming files checks only those entries, in the order given:
+
+```sh
+ldsum verify -c SHA256SUMS dist.tar.gz
+```
+
+A file that holds a bare digest names nothing, so name the file yourself:
+
+```sh
+ldsum verify -c dist.tar.gz.sha256 dist.tar.gz
+```
+
+A mismatch does not stop the run: every file is reported and the summary goes
+to stderr.
+
+```sh
+ldsum verify -c SHA256SUMS
+dist.tar.gz: OK
+docs.pdf: FAILED
+ldsum: 1 of 2 files failed
+```
+
+Lines that are not checksums are named on stderr and skipped; a file with no
+usable lines is an error. `--algo` and `--sums-file` cannot be combined —
+the file says which algorithm each entry uses.
+
 Exit codes, so it drops into a script:
 
 | Code | Meaning |
 |------|---------|
-| 0 | the digest matched, or every file was summed |
-| 1 | the digest did not match, or the file is missing (`verify` only) |
-| 2 | the command could not be carried out: wrong argument count, bad checksum, unknown algorithm, unreadable file, an output file that cannot be written, a directory without `-r` |
+| 0 | every digest matched, or every file was summed |
+| 1 | a digest did not match, or a file being verified is missing |
+| 2 | the command could not be carried out: wrong argument count, bad checksum, unknown algorithm, an unreadable file, an unusable checksum file, an output file that cannot be written, a directory without `-r` |
 
 ## Requirements
 
