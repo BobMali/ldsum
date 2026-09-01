@@ -41,6 +41,31 @@ jobs:
         with:
           version: v2.13.2
 
+  mutation:
+    name: mutation testing
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      # Pinned like golangci-lint above. A mutation score only means something
+      # compared against itself, and an unpinned mutator set moves the goalposts
+      # between runs.
+      - name: install gremlins
+        run: |
+          go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # Thresholds live in .gremlins.yaml, which is also the only place they
+      # work: the --threshold-* flags are accepted and then ignored. A breach
+      # exits 10, so an ordinary failure is enough to fail the step.
+      - name: gremlins unleash
+        run: gremlins unleash
+
   commits:
     name: commit messages
     runs-on: ubuntu-latest

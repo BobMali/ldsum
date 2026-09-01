@@ -1,0 +1,22 @@
+# Mutation testing config, read by `gremlins unleash`.
+#
+# Thresholds only gate from this file: the equivalent --threshold-* command
+# line flags are accepted and then silently ignored, so a breach exits 0.
+unleash:
+  # Each mutant recompiles its package, which the default timeout does not
+  # budget for. Left at the default, 72 of the then-75 mutants reported TIMED
+  # OUT here -- and a timed-out mutant counts as killed, so that run reported
+  # 100% efficacy while testing almost nothing.
+  timeout-coefficient: 20
+
+  threshold:
+    # No known equivalent mutant survives, so anything that lives is a missing
+    # test. Not 100: the check reads `efficacy <= threshold`, so exactly 100
+    # can never pass. At this mutant count 99.99 still means "none may live".
+    # Raise a real equivalent mutant with the author before lowering this.
+    efficacy: 99.99
+
+    # The guard against the false green above: a broken run kills its mutant
+    # coverage (27% in the case described) long before it dents efficacy.
+    # Actual is 90.12%; the margin is for new error paths, not for regressions.
+    mcover: 85
