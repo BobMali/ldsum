@@ -231,3 +231,32 @@ believe a mutant is genuinely equivalent — the mutated code cannot behave
 differently, whatever the test — say so on the pull request rather than lowering
 the threshold. Rewriting the line so there is nothing left to mutate is usually
 better than either.
+
+### The deeper audit
+
+Gremlins only rewrites operators, so a whole class of weak test survives it: it
+has no way to delete a statement, drop an error return or remove a branch.
+[go-mutesting](https://github.com/avito-tech/go-mutesting) does all three, and
+on a green gremlins run it still found a dozen real gaps.
+
+It is not in CI and should not be. It takes about four minutes on `internal/`
+alone, always exits 0 whatever the score, and its survivors need reading one by
+one — many are equivalent mutants that no test could ever kill.
+
+```sh
+go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest
+go-mutesting --do-not-remove-tmp-folder ./internal/... | tee audit.log
+```
+
+Each `FAIL` line is a mutant that lived. `--do-not-remove-tmp-folder` keeps the
+mutated copy so you can see what changed:
+
+```sh
+diff -u internal/hash/hash.go /tmp/go-mutesting-<n>/internal/hash/hash.go.5
+```
+
+Run it when you have changed `internal/` substantially, and treat the output as
+a reading list rather than a score. There is deliberately no blacklist file:
+`--blacklist` matches the MD5 of the *mutated file*, so every entry silently
+stops matching the moment anything else in that file is edited, and a stale
+blacklist hides real survivors.

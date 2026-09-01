@@ -37,6 +37,7 @@ go test ./...                   # all tests
 go test ./cmd -run TestFoo      # a single test
 golangci-lint run               # lint; config in .golangci.yml
 gremlins unleash                # mutation testing; config in .gremlins.yaml
+go-mutesting ./internal/...     # deeper mutation audit, by hand, not in CI
 cobra-cli add <name>            # scaffold a new subcommand into cmd/
 ```
 
@@ -48,6 +49,13 @@ breached. Its thresholds only work from `.gremlins.yaml`; the `--threshold-*`
 flags are accepted and silently ignored. A mutant that survives means a
 behaviour has no test holding it in place — see the testing rules below for
 what to do about one.
+
+`go-mutesting` is the deeper audit and is deliberately outside CI: it takes
+about four minutes, always exits 0 however bad the score, and its survivors have
+to be read individually because many are equivalent. Run it after substantial
+work in `internal/`, never as a gate. It catches what gremlins structurally
+cannot — a deleted statement, a dropped error return, a removed branch. See
+`README.md` for how to triage its output.
 
 `cobra-cli` is installed at `~/go/bin/cobra-cli`. Note that files it generates are **not** gofmt-clean — run `gofmt -w` on them afterwards.
 
