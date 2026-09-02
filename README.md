@@ -212,11 +212,12 @@ go test ./...
 
 All four pass before a change is done.
 
-The root `main_test.go` is the one test that runs `ldsum` itself out of process:
-it builds the binary into a temporary directory and executes it, so `go test
-./...` needs a working `go build` and pays one cached build. It is what covers
-`main.go`, the process exit status, and a working directory chosen per case —
-the other Go tests drive the command tree in process.
+The root `main_test.go` is the one test that runs `ldsum` itself out of
+process: it builds the binary into a temporary directory and executes it, so
+`go test ./...` needs a working `go build` and pays one cached build. It is
+what covers `main.go`, the process exit status, and a working directory chosen
+per case. The `cmd/` tests drive the same command tree in process, which is
+why none of those three are visible to them.
 
 ### Mutation testing
 
