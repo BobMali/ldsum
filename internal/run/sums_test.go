@@ -483,3 +483,32 @@ func TestVerifySumsChecksEveryEntryForANamedPath(t *testing.T) {
 		t.Errorf("stdout naming a.txt = %q, want %q", named.String(), want)
 	}
 }
+
+// errors.As unwraps the whole chain, so the guards elsewhere pin the error's
+// shape but not that it arrived bare. A direct type assertion rejects any
+// wrapping, which is the point: os already put the operation and the path in
+// the message, and a second copy would read "read X: open X: ...".
+func TestVerifySumsLeavesTheOsErrorBare(t *testing.T) {
+	dir := t.TempDir()
+
+	tests := []struct {
+		name string
+		file string
+	}{
+		{name: "the checksum file is missing", file: filepath.Join(dir, "gone")},
+		{name: "the checksum file cannot be read", file: dir},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out, errOut bytes.Buffer
+
+			err := VerifySums(&out, &errOut, SumsOptions{SumsFile: tt.file})
+
+			if _, ok := err.(*fs.PathError); !ok {
+				t.Fatalf("VerifySums() error = %v (%T), want a bare *fs.PathError",
+					err, err)
+			}
+		})
+	}
+}
