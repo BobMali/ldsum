@@ -44,9 +44,10 @@ func Render(w io.Writer, e Entry, f Format) error {
 		}
 		// A leading backslash is how coreutils marks a line whose path was
 		// escaped, so a reader knows to unescape it.
-		prefix, path := "", e.Path
-		if needsEscape(path) {
-			prefix, path = "\\", escaper.Replace(path)
+		path, marked := EscapePath(e.Path)
+		prefix := ""
+		if marked {
+			prefix = "\\"
 		}
 		_, err := fmt.Fprintf(w, "%s%s%s%s\n", prefix, e.Digest.Hex, marker, path)
 		return err
@@ -66,6 +67,17 @@ func Render(w io.Writer, e Entry, f Format) error {
 	default:
 		return errors.New("unknown checksum format " + strconv.Itoa(int(f)))
 	}
+}
+
+// EscapePath returns p as a checksum line carries it, together with whether it
+// had to be escaped. Callers place the leading backslash that marks an escaped
+// line themselves, because it sits before the digest on a rendered line and
+// before the path on a verdict line.
+func EscapePath(p string) (string, bool) {
+	if !needsEscape(p) {
+		return p, false
+	}
+	return escaper.Replace(p), true
 }
 
 // escaper is stateless and safe to share; building it once keeps it off the

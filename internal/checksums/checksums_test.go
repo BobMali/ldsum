@@ -201,3 +201,47 @@ func TestRenderTagRejectsEscapablePath(t *testing.T) {
 		})
 	}
 }
+
+// EscapePath is what a caller outside Render needs to write a path the way a
+// checksum line carries it. The second return is the leading-backslash marker,
+// which sits before the digest on a rendered line and before the path on a
+// verdict line, so the caller places it.
+func TestEscapePath(t *testing.T) {
+	tests := []struct {
+		name   string
+		path   string
+		want   string
+		marked bool
+	}{
+		{name: "plain path is untouched", path: "dist/a.txt", want: "dist/a.txt"},
+		{name: "empty path is untouched", path: "", want: ""},
+		{
+			name:   "backslash doubles",
+			path:   "dist/we\\ird.txt",
+			want:   "dist/we\\\\ird.txt",
+			marked: true,
+		},
+		{
+			name:   "newline becomes an escape",
+			path:   "dist/two\nlines.txt",
+			want:   "dist/two\\nlines.txt",
+			marked: true,
+		},
+		{
+			name:   "both at once",
+			path:   "dist/a\\b\nc.txt",
+			want:   "dist/a\\\\b\\nc.txt",
+			marked: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, marked := EscapePath(tt.path)
+			if got != tt.want || marked != tt.marked {
+				t.Errorf("EscapePath(%q) = %q, %v, want %q, %v",
+					tt.path, got, marked, tt.want, tt.marked)
+			}
+		})
+	}
+}
