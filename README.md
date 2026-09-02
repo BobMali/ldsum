@@ -260,3 +260,19 @@ a reading list rather than a score. There is deliberately no blacklist file:
 `--blacklist` matches the MD5 of the *mutated file*, so every entry silently
 stops matching the moment anything else in that file is edited, and a stale
 blacklist hides real survivors.
+
+Some survivors are permanent. A mutant is equivalent when the change cannot
+alter behaviour, and unreachable when no test can drive the branch it sits in.
+Both are expected; a survivor *not* on this list is worth investigating.
+
+| Where | Why it survives |
+|---|---|
+| `internal/hash/hash.go` — `copyBufSize` arithmetic (4 mutants) | The buffer size cannot change the digest. Equivalent. |
+| `internal/run/sum.go` — the `Flush` and `Close` error returns (2 mutants) | No portable way to make either fail on a regular file. `/dev/full` is Linux-only. |
+| `internal/run/sum.go` — the `if err != nil` block after `WalkDir` returns (4 mutants) | Unreachable by construction: the callback returns `nil` for everything. The source comment says so and keeps it anyway. |
+| `internal/run/sum.go` — `sumFile`'s `hash.Sum` error branch (6 mutants) | Reaching it needs a file that opens and then fails to read. No portable trigger. |
+| `main.go` — `os.Exit(cmd.Execute())` | Nothing executes the built binary yet. Its own plan. |
+
+The score after the gap-closing work of 2026-09-01 is 93% (0.930556, 268
+passed, 20 failed, 11 duplicated, 288 total). A drop below that, or a `FAIL`
+outside this table, means a new gap rather than new noise.
