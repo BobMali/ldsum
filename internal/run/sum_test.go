@@ -603,3 +603,98 @@ func TestSumReportsAnUnusableOutputFile(t *testing.T) {
 		})
 	}
 }
+
+// The summary is the only place the attempted and failed counts are observable,
+// so its exact text is what holds every counter in sum.go in place.
+func TestSumSummaryCountsNamedPaths(t *testing.T) {
+	tests := []struct {
+		name  string
+		paths func(root string) []string
+		want  string
+	}{
+		{
+			name: "one missing beside one good file",
+			paths: func(root string) []string {
+				return []string{filepath.Join(root, "a.txt"), filepath.Join(root, "gone.txt")}
+			},
+			want: "could not sum 1 of 2 paths",
+		},
+		{
+			name: "two missing beside one good file",
+			paths: func(root string) []string {
+				return []string{
+					filepath.Join(root, "a.txt"),
+					filepath.Join(root, "gone.txt"),
+					filepath.Join(root, "also-gone.txt"),
+				}
+			},
+			want: "could not sum 2 of 3 paths",
+		},
+		{
+			name: "a directory without -r is one attempt and one failure",
+			paths: func(root string) []string {
+				return []string{root, filepath.Join(root, "a.txt")}
+			},
+			want: "could not sum 1 of 2 paths",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := sumTree(t, map[string]string{"a.txt": "abc"})
+			var out, errOut bytes.Buffer
+
+			err := Sum(&out, &errOut, SumOptions{
+				Paths:     tt.paths(root),
+				Algorithm: "sha256",
+				Format:    checksums.Text,
+			})
+			if err == nil {
+				t.Fatalf("Sum() error = nil, want %q", tt.want)
+			}
+			if err.Error() != tt.want {
+				t.Errorf("Sum() error = %q, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestSumSummaryCountsAWalk(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can read a file with mode 000")
+	}
+	tests := []struct {
+		name       string
+		unreadable string
+		want       string
+	}{
+		{name: "one unreadable file in a tree of three", unreadable: "b-secret.txt", want: "could not sum 1 of 3 paths"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := sumTree(t, map[string]string{
+				"a.txt":       "abc",
+				tt.unreadable: "abc",
+				"c.txt":       "abc",
+			})
+			if err := os.Chmod(filepath.Join(root, tt.unreadable), 0o000); err != nil {
+				t.Fatalf("chmod: %v", err)
+			}
+			var out, errOut bytes.Buffer
+
+			err := Sum(&out, &errOut, SumOptions{
+				Paths:     []string{root},
+				Algorithm: "sha256",
+				Format:    checksums.Text,
+				Recursive: true,
+			})
+			if err == nil {
+				t.Fatalf("Sum() error = nil, want %q", tt.want)
+			}
+			if err.Error() != tt.want {
+				t.Errorf("Sum() error = %q, want %q", err, tt.want)
+			}
+		})
+	}
+}
