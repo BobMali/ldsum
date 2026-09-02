@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 
+	"github.com/BobMali/ldsum/internal/checksums"
 	"github.com/BobMali/ldsum/internal/hash"
 )
 
@@ -55,15 +56,13 @@ func Verify(out, errOut io.Writer, opts VerifyOptions) error {
 	return verifyEntry(out, errOut, opts.Path, expected)
 }
 
-// verifyEntry hashes one file and reports whether it matches. Every verdict a
-// verification prints leaves through here, so a later change to how a verdict
-// looks has one place to go.
+// verifyEntry hashes one file and reports whether it matches.
 func verifyEntry(out, errOut io.Writer, path string, expected hash.Digest) error {
 	f, err := os.Open(path)
 	if err != nil {
 		// A file that cannot be read gets a verdict like any other, so a run
 		// over many files names it rather than only counting it.
-		fmt.Fprintf(out, "%s: FAILED open or read\n", path)
+		verdict(out, path, "FAILED open or read")
 		if errors.Is(err, fs.ErrNotExist) {
 			return &MissingTargetError{Path: path, Err: err}
 		}
@@ -75,19 +74,32 @@ func verifyEntry(out, errOut io.Writer, path string, expected hash.Digest) error
 	if err != nil {
 		// A directory opens cleanly and fails only here, so this site needs the
 		// same verdict as the one above.
-		fmt.Fprintf(out, "%s: FAILED open or read\n", path)
+		verdict(out, path, "FAILED open or read")
 		return err
 	}
 
 	if !actual.Equal(expected) {
-		fmt.Fprintf(out, "%s: FAILED\n", path)
+		verdict(out, path, "FAILED")
 		fmt.Fprintf(errOut, "expected: %s\n", expected.Hex)
 		fmt.Fprintf(errOut, "actual:   %s\n", actual.Hex)
 		return &MismatchError{Path: path, Expected: expected, Actual: actual}
 	}
 
-	fmt.Fprintf(out, "%s: OK\n", path)
+	verdict(out, path, "OK")
 	return nil
+}
+
+// verdict writes one file's result. Every verdict a verification prints leaves
+// through here, and the path goes out escaped the way a checksum line carries
+// it: printed raw, a newline in a path forges a second verdict line for
+// whatever reads stdout.
+func verdict(out io.Writer, path, result string) {
+	escaped, marked := checksums.EscapePath(path)
+	prefix := ""
+	if marked {
+		prefix = `\`
+	}
+	fmt.Fprintf(out, "%s%s: %s\n", prefix, escaped, result)
 }
 
 func parseExpected(opts VerifyOptions) (hash.Digest, error) {
