@@ -44,7 +44,7 @@ cobra-cli add <name>            # scaffold a new subcommand into cmd/
 `golangci-lint` and `gremlins` are not required locally — CI runs both on every
 push and pull request, alongside the three gates below.
 
-`gremlins unleash` takes about 40 seconds and exits 10 on an efficacy breach,
+`gremlins unleash` takes about 48 seconds and exits 10 on an efficacy breach,
 11 on an mcover breach. Its thresholds only work from `.gremlins.yaml`; the
 `--threshold-*` flags are accepted and silently ignored. A mutant that
 survives means a behaviour has no test holding it in place — see the testing
@@ -108,7 +108,7 @@ The module path is `github.com/BobMali/ldsum`.
 
 ```
 main.go              // only: cmd.Execute() and os.Exit
-main_test.go         // builds the binary and execs it; the only process-level test
+main_test.go         // builds ldsum and runs it as a process
 cmd/                 // cobra command wiring, flag parsing
 internal/hash/       // io.Reader -> digest; knows nothing about files
 internal/checksums/  // render and parse checksum-file lines

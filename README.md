@@ -226,7 +226,7 @@ means some behaviour has no test holding it in place.
 
 ```sh
 go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
-gremlins unleash    # about 40 seconds; exit 10 (efficacy) or 11 (mcover) means a threshold was breached
+gremlins unleash    # about 48 seconds; exit 10 (efficacy) or 11 (mcover) means a threshold was breached
 ```
 
 Settings and the thresholds live in `.gremlins.yaml`. Run it locally before a
