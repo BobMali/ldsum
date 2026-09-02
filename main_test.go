@@ -146,6 +146,9 @@ func TestBinaryExitCodes(t *testing.T) {
 		if !strings.HasPrefix(stderr, "ldsum: ") || !strings.Contains(stderr, "unknown algorithm") {
 			t.Errorf("stderr = %q, want an ldsum-prefixed unknown-algorithm diagnostic", stderr)
 		}
+		if !strings.Contains(stderr, "nonesuch") {
+			t.Errorf("stderr = %q, want the offending algorithm named", stderr)
+		}
 	})
 }
 
