@@ -210,6 +210,12 @@ gofmt -l .          # prints nothing when clean
 go test ./...
 ```
 
+The root `main_test.go` is the one test that leaves the process: it builds
+`ldsum` into a temporary directory and executes it, so `go test ./...` needs a
+working `go build` and pays one cached build. It is what covers `main.go`,
+the real exit status and the real working directory — everything else stops
+at the package boundary.
+
 All four pass before a change is done.
 
 ### Mutation testing
@@ -287,9 +293,8 @@ varies from run to run. Any single run shows a subset of the rows below.
 | `internal/run/sum.go` — the `Flush` and `Close` error returns (2 mutants) | No portable way to make either fail on a regular file. `/dev/full` is Linux-only. |
 | `internal/run/sum.go` — the `if err != nil` block after `WalkDir` returns (4 mutants) | Unreachable by construction: the callback returns `nil` for everything. The source comment says so and keeps it anyway. |
 | `cmd/exit.go` — the `if worst == 0` guard in `exitCode` (2 mutants) | Unreachable by construction: `VerifyErrors.Errs` is never empty and every member maps to exit 1 or 2, so `worst` is never 0. The guard is deliberate defensive code; kept anyway. |
-| `main.go` — `os.Exit(cmd.Execute())` (1 mutant) | Nothing executes the built binary yet. Its own plan. |
 
-One run after the `sumFile` gap closed on 2026-09-02 scored 96% (0.961806,
-277 passed, 11 failed, 11 duplicated, 288 total) — a run's numbers, not the
+One run after the binary harness landed on 2026-09-02 scored 97% (0.965278,
+278 passed, 10 failed, 11 duplicated, 288 total) — a run's numbers, not the
 numbers, given the count above. A `FAIL` outside the table above is worth
 investigating; the score itself is a rough indicator, not a tripwire.
