@@ -2,6 +2,7 @@ package checksums
 
 import (
 	"bytes"
+	"errors"
 	"strings"
 	"testing"
 
@@ -386,6 +387,35 @@ func TestLeadingHex(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := leadingHex(tt.in); got != tt.want {
 				t.Errorf("leadingHex(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
+// errReader fails on the first read. bufio.Scanner swallows the failure and
+// simply stops, so only s.Err() distinguishes a truncated file from a short one.
+type errReader struct{ err error }
+
+func (r *errReader) Read([]byte) (int, error) { return 0, r.err }
+
+func TestParseReportsAReadFailure(t *testing.T) {
+	wantErr := errors.New("the file went away")
+	tests := []struct {
+		name string
+	}{
+		{name: "the reader fails"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := Parse(&errReader{err: wantErr})
+			if !errors.Is(err, wantErr) {
+				t.Fatalf("Parse() error = %v, want %v", err, wantErr)
+			}
+			// A partial listing is what makes this dangerous: verify would
+			// report OK for the entries it did read and never mention the rest.
+			if got.Entries != nil || got.Bad != nil {
+				t.Errorf("Listing = %+v, want the zero value on failure", got)
 			}
 		})
 	}
