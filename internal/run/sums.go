@@ -143,22 +143,27 @@ func selectTargets(errOut io.Writer, listing checksums.Listing, opts SumsOptions
 	}
 
 	// Arguments name entries as the file spells them, so the lookup is on the
-	// listed path, not on anything resolved against the working directory.
-	byPath := make(map[string]checksums.Entry, len(named))
+	// listed path, not on anything resolved against the working directory. A
+	// path may be listed more than once, and naming it has to select every one
+	// of those entries or the argument would change what gets checked.
+	byPath := make(map[string][]checksums.Entry, len(named))
 	for _, e := range named {
-		byPath[filepath.Clean(e.Path)] = e
+		key := filepath.Clean(e.Path)
+		byPath[key] = append(byPath[key], e)
 	}
 
 	targets := make([]target, 0, len(opts.Paths))
 	for _, p := range opts.Paths {
-		e, ok := byPath[filepath.Clean(p)]
+		entries, ok := byPath[filepath.Clean(p)]
 		if !ok {
 			return nil, fmt.Errorf("%s: no entry for %s", opts.SumsFile, p)
 		}
-		targets = append(targets, target{
-			path:   resolve(base, e.Path),
-			digest: e.Digest,
-		})
+		for _, e := range entries {
+			targets = append(targets, target{
+				path:   resolve(base, e.Path),
+				digest: e.Digest,
+			})
+		}
 	}
 	return targets, nil
 }

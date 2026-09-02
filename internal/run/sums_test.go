@@ -455,3 +455,31 @@ func TestVerifySumsReportsAMissingChecksumFile(t *testing.T) {
 		})
 	}
 }
+
+// A path listed twice is checked twice when no arguments are given, so naming
+// it has to check it twice as well: the same file and the same command cannot
+// verify a different set depending on whether the argument is spelled out.
+func TestVerifySumsChecksEveryEntryForANamedPath(t *testing.T) {
+	dir := t.TempDir()
+	writeIn(t, dir, "a.txt", "abc")
+	sums := writeIn(t, dir, "SHA256SUMS",
+		abcSHA256+"  a.txt\n"+strings.Repeat("0", 64)+"  a.txt\n")
+
+	var whole, wholeErr bytes.Buffer
+	_ = VerifySums(&whole, &wholeErr, SumsOptions{SumsFile: sums})
+
+	var named, namedErr bytes.Buffer
+	_ = VerifySums(&named, &namedErr, SumsOptions{
+		SumsFile: sums,
+		Paths:    []string{"a.txt"},
+	})
+
+	path := filepath.Join(dir, "a.txt")
+	want := path + ": OK\n" + path + ": FAILED\n"
+	if whole.String() != want {
+		t.Fatalf("stdout with no arguments = %q, want %q", whole.String(), want)
+	}
+	if named.String() != want {
+		t.Errorf("stdout naming a.txt = %q, want %q", named.String(), want)
+	}
+}
