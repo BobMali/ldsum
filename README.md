@@ -280,13 +280,6 @@ Both are expected; a survivor *not* on this list is worth investigating.
 | `internal/run/sum.go` — `sumFile`'s `hash.Sum` error branch (6 mutants) | Reaching it needs a file that opens and then fails to read. No portable trigger. |
 | `main.go` — `os.Exit(cmd.Execute())` | Nothing executes the built binary yet. Its own plan. |
 
-Three further survivors are a known gap rather than accepted noise: the
-`return 1, 1` counts in `sumFile`'s `checksums.Render` rejection branch. That
-branch *is* reachable — a tagged-format path holding a backslash reaches it —
-and a test drives it, but none asserts the summary counts afterwards, so the
-two numbers are free to change. A new test case closes all three.
-
-The score after the gap-closing work of 2026-09-01 is 93% (0.930556, 268
-passed, 20 failed, 11 duplicated, 288 total) — 17 accepted, 3 the gap above. A
-drop below that, or a `FAIL` outside both, means a new gap rather than new
-noise.
+The score after the gap-closing work of 2026-09-01 is 94% (0.940972, 271
+passed, 17 failed, 11 duplicated, 288 total). A drop below that, or a `FAIL`
+outside the table above, means a new gap rather than new noise.
