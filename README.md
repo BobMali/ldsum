@@ -246,7 +246,10 @@ equivalent mutants that no test could ever kill.
 `go-mutesting` mutates the files under test in place, restoring each one as it
 goes rather than working from a copy of its own. Point it at your working tree
 and an interrupted run leaves your checkout mutated, so run it on a throwaway
-copy instead, and not concurrently with anything else that touches that copy:
+copy instead, and not concurrently with anything else that touches that copy.
+Commit or stash first: `git archive HEAD` archives the last commit, not
+uncommitted changes, so a dirty working tree gets audited against code you did
+not write.
 
 ```sh
 go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest
@@ -262,7 +265,7 @@ mutated copy so you can see what changed:
 diff -u "$PROBE/internal/hash/hash.go" /tmp/go-mutesting-<n>/internal/hash/hash.go.5
 ```
 
-Run it when you have changed `internal/` substantially, and treat the output as
+Run it when you have changed the code substantially, and treat the output as
 a reading list rather than a score. There is deliberately no blacklist file:
 `--blacklist` matches the MD5 of the *mutated file*, so every entry silently
 stops matching the moment anything else in that file is edited, and a stale
@@ -277,9 +280,8 @@ Both are expected; a survivor *not* on this list is worth investigating.
 | `internal/hash/hash.go` — `copyBufSize` arithmetic (4 mutants) | The buffer size cannot change the digest. Equivalent. |
 | `internal/run/sum.go` — the `Flush` and `Close` error returns (2 mutants) | No portable way to make either fail on a regular file. `/dev/full` is Linux-only. |
 | `internal/run/sum.go` — the `if err != nil` block after `WalkDir` returns (4 mutants) | Unreachable by construction: the callback returns `nil` for everything. The source comment says so and keeps it anyway. |
-| `internal/run/sum.go` — `sumFile`'s `hash.Sum` error branch (6 mutants) | Reaching it needs a file that opens and then fails to read. No portable trigger. |
-| `main.go` — `os.Exit(cmd.Execute())` | Nothing executes the built binary yet. Its own plan. |
+| `main.go` — `os.Exit(cmd.Execute())` (1 mutant) | Nothing executes the built binary yet. Its own plan. |
 
-The score after the gap-closing work of 2026-09-01 is 94% (0.940972, 271
-passed, 17 failed, 11 duplicated, 288 total). A drop below that, or a `FAIL`
+The score after the `sumFile` gap closed on 2026-09-02 is 96% (0.961806, 277
+passed, 11 failed, 11 duplicated, 288 total). A drop below that, or a `FAIL`
 outside the table above, means a new gap rather than new noise.
