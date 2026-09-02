@@ -116,3 +116,19 @@ func TestVerifySumsFileExitCodes(t *testing.T) {
 		t.Errorf("missing checksum file: exit code = %d, want 2", code)
 	}
 }
+
+// -c with nothing after it is the flag the user got wrong, so that is what the
+// complaint has to name. Left to fall through to inline mode it produced an
+// argument-count error that never mentioned the flag at all.
+func TestVerifyRejectsAnEmptySumsFile(t *testing.T) {
+	// Usage text reaches the out buffer only because the harness redirects it;
+	// the real binary leaves it on stderr. Nothing else writes to stdout here.
+	_, stderr, code := runExit(t, "verify", "-c", "")
+
+	if code != 2 {
+		t.Errorf("exit code = %d, want 2", code)
+	}
+	if !strings.Contains(stderr, "--sums-file needs a file name") {
+		t.Errorf("stderr = %q, want it to name the empty flag", stderr)
+	}
+}

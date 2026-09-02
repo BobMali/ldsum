@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"errors"
+
 	"github.com/BobMali/ldsum/internal/run"
 	"github.com/spf13/cobra"
 )
@@ -31,9 +33,15 @@ the flag checks only those entries; naming none checks them all.
 It exits 0 when every digest matched, 1 when one did not or a file is
 missing, and 2 when the command itself was wrong.`,
 		Args: func(cmd *cobra.Command, args []string) error {
-			// With a checksum file the arguments pick entries out of it, so
-			// any number is meaningful, including none.
-			if sumsFile != "" {
+			if cmd.Flags().Changed("sums-file") {
+				// An empty -c is the flag itself being wrong. Falling through
+				// to inline mode would complain about the argument count and
+				// never mention the flag.
+				if sumsFile == "" {
+					return errors.New("--sums-file needs a file name")
+				}
+				// With a checksum file the arguments pick entries out of it,
+				// so any number is meaningful, including none.
 				return nil
 			}
 			return cobra.ExactArgs(2)(cmd, args)
