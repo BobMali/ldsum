@@ -420,3 +420,25 @@ func TestParseReportsAReadFailure(t *testing.T) {
 		})
 	}
 }
+
+// The leading-backslash strip sits below the tagged branch and has to stay
+// there. A tagged line never carries the marker — Render refuses a path that
+// would need escaping in that format — so a line that has one is malformed,
+// not a tagged entry with a stray character in front.
+func TestParseRejectsAMarkedTaggedLine(t *testing.T) {
+	in := `\SHA256 (dist/a.txt) = ` + abcSHA256 + "\n"
+
+	got, err := Parse(strings.NewReader(in))
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if len(got.Entries) != 0 {
+		t.Errorf("Parse() Entries = %+v, want none", got.Entries)
+	}
+	if len(got.Bad) != 1 {
+		t.Fatalf("Parse() Bad = %+v, want exactly one", got.Bad)
+	}
+	if got.Bad[0].Line != 1 {
+		t.Errorf("Bad[0].Line = %d, want 1", got.Bad[0].Line)
+	}
+}
