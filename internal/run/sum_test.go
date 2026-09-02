@@ -741,3 +741,57 @@ func TestSumOutputFileErrorNamesTheFile(t *testing.T) {
 		})
 	}
 }
+
+// An unreadable file fails at os.Open inside sumFile. Only an unreadable
+// directory makes WalkDir hand an error to the callback, which is a separate
+// branch with its own reporting and counting.
+func TestSumWalkReportsAnUnreadableDirectory(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root can read a directory with mode 000")
+	}
+	tests := []struct {
+		name   string
+		locked string
+	}{
+		{name: "mode 000 subdirectory", locked: "b-locked"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := sumTree(t, map[string]string{
+				"a.txt":                               "abc",
+				filepath.Join(tt.locked, "inner.txt"): "abc",
+				"c.txt":                               "abc",
+			})
+			locked := filepath.Join(root, tt.locked)
+			if err := os.Chmod(locked, 0o000); err != nil {
+				t.Fatalf("chmod: %v", err)
+			}
+			// t.TempDir cannot remove a directory it may not read.
+			t.Cleanup(func() { _ = os.Chmod(locked, 0o755) })
+			var out, errOut bytes.Buffer
+
+			err := Sum(&out, &errOut, SumOptions{
+				Paths:     []string{root},
+				Algorithm: "sha256",
+				Format:    checksums.Text,
+				Recursive: true,
+			})
+			if err == nil {
+				t.Fatal("Sum() error = nil, want an error after an unreadable directory")
+			}
+			if want := "could not sum 1 of 3 paths"; err.Error() != want {
+				t.Errorf("Sum() error = %q, want %q", err, want)
+			}
+			if !strings.Contains(errOut.String(), tt.locked) {
+				t.Errorf("stderr = %q, want it to name %q", errOut.String(), tt.locked)
+			}
+			want := abcSHA256 + "  " + filepath.Join(root, "a.txt") + "\n" +
+				abcSHA256 + "  " + filepath.Join(root, "c.txt") + "\n"
+			if out.String() != want {
+				t.Errorf("stdout = %q, want %q — the walk must continue past the failure",
+					out.String(), want)
+			}
+		})
+	}
+}
