@@ -34,8 +34,8 @@ jobs:
       - name: go test
         run: go test ./...
 
-      # No .golangci.yml, so this is the default set: staticcheck, errcheck,
-      # ineffassign and unused, on top of the vet already run above.
+      # .golangci.yml at the repo root configures this: the default linters
+      # plus perfsprint and revive, on top of the vet already run above.
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
@@ -61,8 +61,8 @@ jobs:
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # Thresholds live in .gremlins.yaml, which is also the only place they
-      # work: the --threshold-* flags are accepted and then ignored. A breach
-      # exits 10, so an ordinary failure is enough to fail the step.
+      # work: the --threshold-* flags are accepted and then ignored. An
+      # efficacy breach exits 10, an mcover breach 11 -- either fails the step.
       - name: gremlins unleash
         run: gremlins unleash
 
