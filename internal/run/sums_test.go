@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -421,5 +422,36 @@ func TestVerifySumsNamesTheFileWhenParsingFails(t *testing.T) {
 	var multi *VerifyErrors
 	if errors.As(err, &multi) {
 		t.Errorf("error = %v, want a plain error rather than a *VerifyErrors", err)
+	}
+}
+
+// os.Open already returns an *fs.PathError carrying "open" and the path, which
+// is why VerifySums returns it bare. Dropping that return still fails the run,
+// but as a doubly wrapped "invalid argument" from reading a nil file.
+func TestVerifySumsReportsAMissingChecksumFile(t *testing.T) {
+	tests := []struct {
+		name string
+		file string
+	}{
+		{name: "the checksum file does not exist", file: "SHA256SUMS"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sumsPath := filepath.Join(t.TempDir(), tt.file)
+			var out, errOut bytes.Buffer
+
+			err := VerifySums(&out, &errOut, SumsOptions{SumsFile: sumsPath})
+			var pathErr *fs.PathError
+			if !errors.As(err, &pathErr) {
+				t.Fatalf("VerifySums() error = %v (%T), want an *fs.PathError", err, err)
+			}
+			if pathErr.Op != "open" {
+				t.Errorf("error op = %q, want %q", pathErr.Op, "open")
+			}
+			if pathErr.Path != sumsPath {
+				t.Errorf("error path = %q, want %q", pathErr.Path, sumsPath)
+			}
+		})
 	}
 }
