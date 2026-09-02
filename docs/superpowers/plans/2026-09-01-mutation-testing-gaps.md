@@ -919,6 +919,7 @@ Written before the tests, to be replaced by measurement in Task 10.
 - `internal/run/sum.go` — `return flushErr` and `return closeErr`. Making a flush or close fail on a regular file has no portable trigger; `/dev/full` exists only on Linux.
 - `internal/run/sum.go` — the `if err != nil` block after `WalkDir` returns, and its two counter bumps. The callback returns `nil` for everything, so the block is unreachable; the source comment already says so.
 - `internal/run/sum.go` — `sumFile`'s `hash.Sum` error branch, which needs a file that opens successfully and then fails to read.
+  Disproved: a directory does exactly that. Closed by `TestSumFileReportsAnUnreadableStream` in `internal/run/sum_test.go` (commit `6dac916`).
 - `main.go` — `os.Exit(cmd.Execute())`, pending the binary-harness plan.
 
 ## Out of scope

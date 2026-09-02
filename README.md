@@ -220,11 +220,11 @@ means some behaviour has no test holding it in place.
 
 ```sh
 go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
-gremlins unleash    # about 40 seconds; exit 10 means a threshold was breached
+gremlins unleash    # about 40 seconds; exit 10 (efficacy) or 11 (mcover) means a threshold was breached
 ```
 
 Settings and the thresholds live in `.gremlins.yaml`. Run it locally before a
-push that touches `internal/`, or let CI find it.
+push that touches `internal/` or `cmd/`, or let CI find it.
 
 A survivor is a missing test, not a reason to change an existing one. If you
 believe a mutant is genuinely equivalent — the mutated code cannot behave
@@ -248,8 +248,8 @@ goes rather than working from a copy of its own. Point it at your working tree
 and an interrupted run leaves your checkout mutated, so run it on a throwaway
 copy instead, and not concurrently with anything else that touches that copy.
 Commit or stash first: `git archive HEAD` archives the last commit, not
-uncommitted changes, so a dirty working tree gets audited against code you did
-not write.
+uncommitted changes, so a dirty working tree gets audited against the last
+commit rather than your changes.
 
 ```sh
 go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest
@@ -275,13 +275,21 @@ Some survivors are permanent. A mutant is equivalent when the change cannot
 alter behaviour, and unreachable when no test can drive the branch it sits in.
 Both are expected; a survivor *not* on this list is worth investigating.
 
+The table is the union of survivors observed across runs, not one run's
+output: go-mutesting's mutant count is not stable between runs on identical
+source — two runs against the same commit reported 284 and 288 total
+mutants, both killing exactly 277, because the tool's own deduplication
+varies from run to run. Any single run shows a subset of the rows below.
+
 | Where | Why it survives |
 |---|---|
 | `internal/hash/hash.go` — `copyBufSize` arithmetic (4 mutants) | The buffer size cannot change the digest. Equivalent. |
 | `internal/run/sum.go` — the `Flush` and `Close` error returns (2 mutants) | No portable way to make either fail on a regular file. `/dev/full` is Linux-only. |
 | `internal/run/sum.go` — the `if err != nil` block after `WalkDir` returns (4 mutants) | Unreachable by construction: the callback returns `nil` for everything. The source comment says so and keeps it anyway. |
+| `cmd/exit.go` — the `if worst == 0` guard in `exitCode` (2 mutants) | Unreachable by construction: `VerifyErrors.Errs` is never empty and every member maps to exit 1 or 2, so `worst` is never 0. The guard is deliberate defensive code; kept anyway. |
 | `main.go` — `os.Exit(cmd.Execute())` (1 mutant) | Nothing executes the built binary yet. Its own plan. |
 
-The score after the `sumFile` gap closed on 2026-09-02 is 96% (0.961806, 277
-passed, 11 failed, 11 duplicated, 288 total). A drop below that, or a `FAIL`
-outside the table above, means a new gap rather than new noise.
+One run after the `sumFile` gap closed on 2026-09-02 scored 96% (0.961806,
+277 passed, 11 failed, 11 duplicated, 288 total) — a run's numbers, not the
+numbers, given the count above. A `FAIL` outside the table above is worth
+investigating; the score itself is a rough indicator, not a tripwire.

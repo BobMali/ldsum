@@ -37,25 +37,27 @@ go test ./...                   # all tests
 go test ./cmd -run TestFoo      # a single test
 golangci-lint run               # lint; config in .golangci.yml
 gremlins unleash                # mutation testing; config in .gremlins.yaml
-go-mutesting ./internal/...     # deeper mutation audit, by hand, not in CI
+go-mutesting ./...              # deeper mutation audit, by hand, not in CI
 cobra-cli add <name>            # scaffold a new subcommand into cmd/
 ```
 
 `golangci-lint` and `gremlins` are not required locally — CI runs both on every
 push and pull request, alongside the three gates below.
 
-`gremlins unleash` takes about 40 seconds and exits 10 when a threshold is
-breached. Its thresholds only work from `.gremlins.yaml`; the `--threshold-*`
-flags are accepted and silently ignored. A mutant that survives means a
-behaviour has no test holding it in place — see the testing rules below for
-what to do about one.
+`gremlins unleash` takes about 40 seconds and exits 10 on an efficacy breach,
+11 on an mcover breach. Its thresholds only work from `.gremlins.yaml`; the
+`--threshold-*` flags are accepted and silently ignored. A mutant that
+survives means a behaviour has no test holding it in place — see the testing
+rules below for what to do about one.
 
 `go-mutesting` is the deeper audit and is deliberately outside CI: it takes
 about four minutes, always exits 0 however bad the score, and its survivors have
-to be read individually because many are equivalent. Run it after substantial
-work in `internal/`, never as a gate. It catches what gremlins structurally
-cannot — a deleted statement, a dropped error return, a removed branch. See
-`README.md` for how to triage its output.
+to be read individually because many are equivalent. It mutates files in
+place, so don't run the command above straight against your checkout — see
+`README.md` for the throwaway-copy recipe and how to triage the output. Run
+it after substantial work, never as a gate. It catches what gremlins
+structurally cannot — a deleted statement, a dropped error return, a removed
+branch.
 
 `cobra-cli` is installed at `~/go/bin/cobra-cli`. Note that files it generates are **not** gofmt-clean — run `gofmt -w` on them afterwards.
 
@@ -151,7 +153,8 @@ the default linters, with errcheck excluded on writer and close calls) and
 runs in CI, so a push is checked even if you do not run it locally.
 
 `gremlins unleash` must exit 0 as well. It runs in CI on the same terms; a
-change that touches `internal/` is worth running it against locally first.
+change that touches `internal/` or `cmd/` is worth running it against locally
+first.
 
 Never mark work as done based on reasoning about the code. Run the
 commands and report what they actually printed.
