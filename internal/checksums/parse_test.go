@@ -303,25 +303,35 @@ func TestRenderParseRoundTrip(t *testing.T) {
 		"ends-with-spaces  ",
 	}
 
-	for _, format := range []Format{Text, Binary} {
-		for _, p := range paths {
-			t.Run(p, func(t *testing.T) {
-				var buf bytes.Buffer
-				if err := Render(&buf, Entry{Digest: abcDigest, Path: p}, format); err != nil {
-					t.Fatalf("Render() error = %v", err)
-				}
-				got, err := Parse(&buf)
-				if err != nil {
-					t.Fatalf("Parse() error = %v", err)
-				}
-				if len(got.Entries) != 1 {
-					t.Fatalf("Parse() Entries = %+v, Bad = %+v, want one entry", got.Entries, got.Bad)
-				}
-				if got.Entries[0].Path != p {
-					t.Errorf("round trip gave %q, want %q", got.Entries[0].Path, p)
-				}
-			})
-		}
+	formats := []struct {
+		name   string
+		format Format
+	}{
+		{name: "text", format: Text},
+		{name: "binary", format: Binary},
+	}
+
+	for _, f := range formats {
+		t.Run(f.name, func(t *testing.T) {
+			for _, p := range paths {
+				t.Run(p, func(t *testing.T) {
+					var buf bytes.Buffer
+					if err := Render(&buf, Entry{Digest: abcDigest, Path: p}, f.format); err != nil {
+						t.Fatalf("Render() error = %v", err)
+					}
+					got, err := Parse(&buf)
+					if err != nil {
+						t.Fatalf("Parse() error = %v", err)
+					}
+					if len(got.Entries) != 1 {
+						t.Fatalf("Parse() Entries = %+v, Bad = %+v, want one entry", got.Entries, got.Bad)
+					}
+					if got.Entries[0].Path != p {
+						t.Errorf("round trip gave %q, want %q", got.Entries[0].Path, p)
+					}
+				})
+			}
+		})
 	}
 }
 
