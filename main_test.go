@@ -1,7 +1,8 @@
-// Package main_test executes the built binary. It is the only test in the
-// tree that leaves the process boundary: every other one drives cobra in
-// process, where the exit status, real argv and the real working directory
-// cannot be observed.
+// Package main_test executes the built binary. It is the only test that runs
+// ldsum itself out of process: the cmd tests drive the same cobra tree in
+// process, where the exit status and real argv cannot be observed, and where
+// the working directory can only be changed by mutating the test binary's
+// own.
 package main_test
 
 import (
@@ -164,7 +165,8 @@ func TestBinaryResolvesPathsAgainstTheRightDirectory(t *testing.T) {
 
 		// The working directory is the parent, where payload.txt does not
 		// exist: resolving the entry against the process's own directory
-		// would fail outright. Only a real process can tell the two apart.
+		// would fail outright. Setting it on a launched process rather than
+		// with t.Chdir leaves the test binary's own directory alone.
 		stdout, stderr, code := run(t, parent, "verify", "-c", filepath.Join("w", "SUMS"))
 		if code != 0 {
 			t.Errorf("exit = %d, want 0\nstderr: %s", code, stderr)
