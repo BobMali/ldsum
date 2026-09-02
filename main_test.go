@@ -148,3 +148,66 @@ func TestBinaryExitCodes(t *testing.T) {
 		}
 	})
 }
+
+func TestBinaryResolvesPathsAgainstTheRightDirectory(t *testing.T) {
+	t.Run("a relative entry resolves against the checksum file", func(t *testing.T) {
+		parent := t.TempDir()
+		dir := filepath.Join(parent, "w")
+		if err := os.Mkdir(dir, 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		writeIn(t, dir, "payload.txt", "abc")
+		writeIn(t, dir, "SUMS", abcSHA256+"  payload.txt\n")
+
+		// The working directory is the parent, where payload.txt does not
+		// exist: resolving the entry against the process's own directory
+		// would fail outright. Only a real process can tell the two apart.
+		stdout, stderr, code := run(t, parent, "verify", "-c", filepath.Join("w", "SUMS"))
+		if code != 0 {
+			t.Errorf("exit = %d, want 0\nstderr: %s", code, stderr)
+		}
+		if want := filepath.Join("w", "payload.txt") + ": OK\n"; stdout != want {
+			t.Errorf("stdout = %q, want %q", stdout, want)
+		}
+		if stderr != "" {
+			t.Errorf("stderr = %q, want empty", stderr)
+		}
+	})
+
+	t.Run("an absolute entry is used as it stands", func(t *testing.T) {
+		dir := t.TempDir()
+		payload := writeIn(t, dir, "payload.txt", "abc")
+		sums := writeIn(t, dir, "SUMS", abcSHA256+"  "+payload+"\n")
+
+		// Run from a directory with no relation to either file.
+		stdout, stderr, code := run(t, t.TempDir(), "verify", "-c", sums)
+		if code != 0 {
+			t.Errorf("exit = %d, want 0\nstderr: %s", code, stderr)
+		}
+		if want := payload + ": OK\n"; stdout != want {
+			t.Errorf("stdout = %q, want %q", stdout, want)
+		}
+		if stderr != "" {
+			t.Errorf("stderr = %q, want empty", stderr)
+		}
+	})
+
+	t.Run("a filename containing a space", func(t *testing.T) {
+		dir := t.TempDir()
+		writeIn(t, dir, "with space.txt", "abc")
+
+		// There is no shell between the harness and the binary; this pins
+		// that argv arrives unsplit. A space is not escaped on output —
+		// only a backslash or a newline is.
+		stdout, stderr, code := run(t, dir, "sum", "with space.txt")
+		if code != 0 {
+			t.Errorf("exit = %d, want 0\nstderr: %s", code, stderr)
+		}
+		if want := abcSHA256 + "  with space.txt\n"; stdout != want {
+			t.Errorf("stdout = %q, want %q", stdout, want)
+		}
+		if stderr != "" {
+			t.Errorf("stderr = %q, want empty", stderr)
+		}
+	})
+}
