@@ -315,3 +315,38 @@ func TestSumCommandUnusableOutputFileExitsTwo(t *testing.T) {
 		})
 	}
 }
+
+// internal/run covers what Verbose does. This covers that the flag exists at
+// all: delete its registration and only a test that types -v notices.
+func TestSumVerboseFlagIsWired(t *testing.T) {
+	tests := []struct {
+		name string
+		link string
+	}{
+		{name: "-v names a skipped symlink", link: "link.txt"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			file := filepath.Join(root, "a.txt")
+			if err := os.WriteFile(file, []byte("abc"), 0o644); err != nil {
+				t.Fatalf("write a.txt: %v", err)
+			}
+			if err := os.Symlink(file, filepath.Join(root, tt.link)); err != nil {
+				t.Skipf("symlinks unavailable: %v", err)
+			}
+
+			stdout, stderr, err := runCLI(t, "sum", "-r", "-v", root)
+			if err != nil {
+				t.Fatalf("runCLI() error = %v, stderr = %q", err, stderr)
+			}
+			if want := abcSHA256 + "  " + file + "\n"; stdout != want {
+				t.Errorf("stdout = %q, want %q", stdout, want)
+			}
+			if !strings.Contains(stderr, tt.link) {
+				t.Errorf("stderr = %q, want it to name the skipped %q", stderr, tt.link)
+			}
+		})
+	}
+}
