@@ -102,6 +102,10 @@ format (`SHA256 (<path>) = <digest>`), and a file holding nothing but a
 digest. Escaped paths are unescaped, so anything `ldsum sum` writes can be
 read straight back.
 
+A verdict line spells the path the same way the checksum file did, escapes and
+leading `\` included, so a newline in a path cannot forge a second line for a
+script reading stdout.
+
 Entries resolve relative to **the checksum file's directory**, not the working
 directory — a published `SHA256SUMS` sits beside the files it describes, so
 that is what its paths mean:
