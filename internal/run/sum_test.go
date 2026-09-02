@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/BobMali/ldsum/internal/checksums"
+	"github.com/BobMali/ldsum/internal/hash"
 )
 
 // sumTree writes each name/contents pair under a fresh temporary directory and
@@ -867,6 +868,34 @@ func TestSumSummaryCountsATagRejection(t *testing.T) {
 			}
 			if err.Error() != tt.want {
 				t.Errorf("Sum() error = %q, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+// sumFile is called directly because a directory never reaches it through Sum:
+// sumPath routes directories to walkDir and the walk callback skips them. The
+// branch is reachable all the same — a directory opens and then fails to read.
+func TestSumFileReportsAnUnreadableStream(t *testing.T) {
+	tests := []struct {
+		name string
+	}{
+		{name: "a directory opens and then fails to read"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var out, errOut bytes.Buffer
+
+			attempted, failures := sumFile(&out, &errOut, t.TempDir(), hash.SHA256, checksums.Text)
+			if attempted != 1 || failures != 1 {
+				t.Errorf("sumFile() = (%d, %d), want (1, 1)", attempted, failures)
+			}
+			if out.String() != "" {
+				t.Errorf("stdout = %q, want empty — nothing was hashed", out.String())
+			}
+			if !strings.Contains(errOut.String(), "is a directory") {
+				t.Errorf("stderr = %q, want it to report the read failure", errOut.String())
 			}
 		})
 	}
