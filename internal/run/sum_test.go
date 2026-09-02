@@ -830,3 +830,44 @@ func TestSumVerboseWalkIsSilentAboutDirectories(t *testing.T) {
 		})
 	}
 }
+
+// The tag-rejection branch is reachable and already driven by
+// TestSumKeepsGoingAfterATagRejection, but nothing there asserts the counts,
+// so sumFile's return values on that path are free to change.
+func TestSumSummaryCountsATagRejection(t *testing.T) {
+	tests := []struct {
+		name string
+		odd  string
+		want string
+	}{
+		{
+			name: "a path tagged format cannot carry",
+			odd:  "we\\ird.txt",
+			want: "could not sum 1 of 3 paths",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := sumTree(t, map[string]string{
+				"a.txt": "abc",
+				tt.odd:  "abc",
+				"z.txt": "abc",
+			})
+			var out, errOut bytes.Buffer
+
+			err := Sum(&out, &errOut, SumOptions{
+				Paths:     []string{root},
+				Algorithm: "sha256",
+				Format:    checksums.Tag,
+				Recursive: true,
+			})
+			if err == nil {
+				t.Fatalf("Sum() error = nil, want %q", tt.want)
+			}
+			if err.Error() != tt.want {
+				t.Errorf("Sum() error = %q, want %q", err, tt.want)
+			}
+		})
+	}
+}
