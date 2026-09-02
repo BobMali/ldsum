@@ -2,6 +2,8 @@ package run
 
 import (
 	"bytes"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -694,6 +696,47 @@ func TestSumSummaryCountsAWalk(t *testing.T) {
 			}
 			if err.Error() != tt.want {
 				t.Errorf("Sum() error = %q, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+// The existing test asserts only that some error came back, which a dropped
+// os.Create check still satisfies via the failing flush. The error's identity
+// is what separates them.
+func TestSumOutputFileErrorNamesTheFile(t *testing.T) {
+	tests := []struct {
+		name   string
+		output func(root string) string
+	}{
+		{
+			name:   "a directory that does not exist",
+			output: func(root string) string { return filepath.Join(root, "missing", "SHA256SUMS") },
+		},
+		{
+			name:   "a directory in place of the file",
+			output: func(root string) string { return root },
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := sumTree(t, map[string]string{"a.txt": "abc"})
+			outPath := tt.output(root)
+			var out, errOut bytes.Buffer
+
+			err := Sum(&out, &errOut, SumOptions{
+				Paths:     []string{filepath.Join(root, "a.txt")},
+				Algorithm: "sha256",
+				Format:    checksums.Text,
+				Output:    outPath,
+			})
+			var pathErr *fs.PathError
+			if !errors.As(err, &pathErr) {
+				t.Fatalf("Sum() error = %v (%T), want an *fs.PathError naming the output file", err, err)
+			}
+			if pathErr.Path != outPath {
+				t.Errorf("error path = %q, want %q", pathErr.Path, outPath)
 			}
 		})
 	}
