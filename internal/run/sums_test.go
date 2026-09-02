@@ -512,3 +512,24 @@ func TestVerifySumsLeavesTheOsErrorBare(t *testing.T) {
 		})
 	}
 }
+
+// Warnings come from two passes — the bad lines Parse collected and the
+// pathless entries the selection rejects — but they are complaints about one
+// file, so they have to read in that file's own order.
+func TestVerifySumsWarnsInLineOrder(t *testing.T) {
+	dir := t.TempDir()
+	writeIn(t, dir, "a.txt", "abc")
+	sums := writeIn(t, dir, "SHA256SUMS",
+		abcSHA256+"\ngarbage\n"+abcSHA256+"  a.txt\n")
+
+	var out, errOut bytes.Buffer
+	if err := VerifySums(&out, &errOut, SumsOptions{SumsFile: sums}); err != nil {
+		t.Fatalf("VerifySums() error = %v", err)
+	}
+
+	want := sums + ":1: checksum without a path\n" +
+		sums + ":2: not a checksum line\n"
+	if errOut.String() != want {
+		t.Errorf("stderr = %q, want %q", errOut.String(), want)
+	}
+}

@@ -1,12 +1,14 @@
 package run
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/BobMali/ldsum/internal/checksums"
 	"github.com/BobMali/ldsum/internal/hash"
@@ -59,11 +61,18 @@ func VerifySums(out, errOut io.Writer, opts SumsOptions) error {
 		return err
 	}
 
+	targets, warnings, err := selectTargets(listing, opts)
+	// The two passes find their complaints in different orders, but they are
+	// complaints about one file, so they come out in that file's order.
 	for _, b := range listing.Bad {
-		warnLine(errOut, opts.SumsFile, b.Line, b.Err.Error())
+		warnings = append(warnings, warning{line: b.Line, msg: b.Err.Error()})
 	}
-
-	targets, err := selectTargets(errOut, listing, opts)
+	slices.SortStableFunc(warnings, func(a, b warning) int {
+		return cmp.Compare(a.line, b.line)
+	})
+	for _, w := range warnings {
+		warnLine(errOut, opts.SumsFile, w.line, w.msg)
+	}
 	if err != nil {
 		return err
 	}
@@ -85,6 +94,13 @@ func VerifySums(out, errOut io.Writer, opts SumsOptions) error {
 	return &VerifyErrors{Checked: len(targets), Errs: errs}
 }
 
+// warning is one unusable line of a checksum file, held until every pass has
+// had its say so the whole set can be reported in line order.
+type warning struct {
+	line int
+	msg  string
+}
+
 // warnLine reports a line of a checksum file that could not be used. Every
 // such warning leaves through here.
 func warnLine(errOut io.Writer, file string, line int, msg string) {
@@ -104,29 +120,31 @@ func resolve(base, p string) string {
 // selectTargets works out which files the listing asks for. The mode is a
 // property of the whole listing, not of any one line: a single pathless entry
 // is a bare-digest file, and a stray one among many is just a broken line.
-func selectTargets(errOut io.Writer, listing checksums.Listing, opts SumsOptions) ([]target, error) {
+func selectTargets(listing checksums.Listing, opts SumsOptions) ([]target, []warning, error) {
 	if len(listing.Entries) == 1 && listing.Entries[0].Path == "" {
 		if len(opts.Paths) == 0 {
-			return nil, fmt.Errorf(
+			return nil, nil, fmt.Errorf(
 				"%s: no paths in file; name the file to verify", opts.SumsFile)
 		}
 		if len(opts.Paths) > 1 {
-			return nil, fmt.Errorf(
+			return nil, nil, fmt.Errorf(
 				"%s: holds one checksum; name exactly one file", opts.SumsFile)
 		}
-		return []target{{path: opts.Paths[0], digest: listing.Entries[0].Digest}}, nil
+		return []target{{path: opts.Paths[0], digest: listing.Entries[0].Digest}}, nil, nil
 	}
 
+	var warnings []warning
 	named := make([]checksums.Entry, 0, len(listing.Entries))
 	for _, e := range listing.Entries {
 		if e.Path == "" {
-			warnLine(errOut, opts.SumsFile, e.Line, "checksum without a path")
+			warnings = append(warnings,
+				warning{line: e.Line, msg: "checksum without a path"})
 			continue
 		}
 		named = append(named, e)
 	}
 	if len(named) == 0 {
-		return nil, fmt.Errorf("%s: no checksum lines found", opts.SumsFile)
+		return nil, warnings, fmt.Errorf("%s: no checksum lines found", opts.SumsFile)
 	}
 
 	base := filepath.Dir(opts.SumsFile)
@@ -139,7 +157,7 @@ func selectTargets(errOut io.Writer, listing checksums.Listing, opts SumsOptions
 				digest: e.Digest,
 			})
 		}
-		return targets, nil
+		return targets, warnings, nil
 	}
 
 	// Arguments name entries as the file spells them, so the lookup is on the
@@ -156,7 +174,7 @@ func selectTargets(errOut io.Writer, listing checksums.Listing, opts SumsOptions
 	for _, p := range opts.Paths {
 		entries, ok := byPath[filepath.Clean(p)]
 		if !ok {
-			return nil, fmt.Errorf("%s: no entry for %s", opts.SumsFile, p)
+			return nil, warnings, fmt.Errorf("%s: no entry for %s", opts.SumsFile, p)
 		}
 		for _, e := range entries {
 			targets = append(targets, target{
@@ -165,5 +183,5 @@ func selectTargets(errOut io.Writer, listing checksums.Listing, opts SumsOptions
 			})
 		}
 	}
-	return targets, nil
+	return targets, warnings, nil
 }
