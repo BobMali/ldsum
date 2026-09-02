@@ -243,16 +243,23 @@ It is not in CI and should not be. It takes about four minutes on `internal/`
 alone, always exits 0 whatever the score, and its survivors need reading one by
 one — many are equivalent mutants that no test could ever kill.
 
+`go-mutesting` mutates the files under test in place, restoring each one as it
+goes rather than working from a copy of its own. Point it at your working tree
+and an interrupted run leaves your checkout mutated, so run it on a throwaway
+copy instead, and not concurrently with anything else that touches that copy:
+
 ```sh
 go install github.com/avito-tech/go-mutesting/cmd/go-mutesting@latest
-go-mutesting --do-not-remove-tmp-folder ./internal/... | tee audit.log
+PROBE=$(mktemp -d)
+git archive HEAD | tar -x -C "$PROBE"
+(cd "$PROBE" && go-mutesting --do-not-remove-tmp-folder ./internal/... | tee audit.log)
 ```
 
 Each `FAIL` line is a mutant that lived. `--do-not-remove-tmp-folder` keeps the
 mutated copy so you can see what changed:
 
 ```sh
-diff -u internal/hash/hash.go /tmp/go-mutesting-<n>/internal/hash/hash.go.5
+diff -u "$PROBE/internal/hash/hash.go" /tmp/go-mutesting-<n>/internal/hash/hash.go.5
 ```
 
 Run it when you have changed `internal/` substantially, and treat the output as
