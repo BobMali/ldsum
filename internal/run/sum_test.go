@@ -795,3 +795,38 @@ func TestSumWalkReportsAnUnreadableDirectory(t *testing.T) {
 		})
 	}
 }
+
+// A directory is walked into, not skipped, so -v must not announce it. Removing
+// the IsDir branch leaves the output identical and only this line differs.
+func TestSumVerboseWalkIsSilentAboutDirectories(t *testing.T) {
+	tests := []struct {
+		name string
+		sub  string
+	}{
+		{name: "a subdirectory says nothing", sub: "sub"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := sumTree(t, map[string]string{filepath.Join(tt.sub, "a.txt"): "abc"})
+			var out, errOut bytes.Buffer
+
+			err := Sum(&out, &errOut, SumOptions{
+				Paths:     []string{root},
+				Algorithm: "sha256",
+				Format:    checksums.Text,
+				Recursive: true,
+				Verbose:   true,
+			})
+			if err != nil {
+				t.Fatalf("Sum() error = %v", err)
+			}
+			if want := abcSHA256 + "  " + filepath.Join(root, tt.sub, "a.txt") + "\n"; out.String() != want {
+				t.Errorf("stdout = %q, want %q", out.String(), want)
+			}
+			if errOut.String() != "" {
+				t.Errorf("stderr = %q, want empty — a directory is walked, not skipped", errOut.String())
+			}
+		})
+	}
+}
