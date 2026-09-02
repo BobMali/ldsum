@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -106,4 +107,44 @@ func TestBinarySumPrintsADigest(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBinaryExitCodes(t *testing.T) {
+	// A well-formed sha256 that nothing hashes to.
+	const zeroSHA256 = "0000000000000000000000000000000000000000000000000000000000000000"
+
+	t.Run("a mismatch exits 1", func(t *testing.T) {
+		dir := t.TempDir()
+		writeIn(t, dir, "payload.txt", "abc")
+
+		stdout, stderr, code := run(t, dir, "verify", "payload.txt", zeroSHA256)
+		if code != 1 {
+			t.Errorf("exit = %d, want 1", code)
+		}
+		if want := "payload.txt: FAILED\n"; stdout != want {
+			t.Errorf("stdout = %q, want %q", stdout, want)
+		}
+		want := "expected: " + zeroSHA256 + "\nactual:   " + abcSHA256 + "\n"
+		if stderr != want {
+			t.Errorf("stderr = %q, want %q", stderr, want)
+		}
+	})
+
+	t.Run("an unknown algorithm exits 2", func(t *testing.T) {
+		dir := t.TempDir()
+		writeIn(t, dir, "payload.txt", "abc")
+
+		stdout, stderr, code := run(t, dir, "verify", "--algo", "nonesuch", "payload.txt", abcSHA256)
+		if code != 2 {
+			t.Errorf("exit = %d, want 2", code)
+		}
+		if stdout != "" {
+			t.Errorf("stdout = %q, want empty", stdout)
+		}
+		// The sentence itself belongs to internal/run, whose tests own it.
+		// What this case pins is that it reached the real stderr, prefixed.
+		if !strings.HasPrefix(stderr, "ldsum: ") || !strings.Contains(stderr, "unknown algorithm") {
+			t.Errorf("stderr = %q, want an ldsum-prefixed unknown-algorithm diagnostic", stderr)
+		}
+	})
 }
