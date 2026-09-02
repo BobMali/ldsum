@@ -424,7 +424,7 @@ Expected: PASS, both functions.
 
 - [ ] **Step 5: Prove they are load-bearing**
 
-In `internal/run/sum.go:64`, change `attempted += a` to `attempted -= a`. Run the same command. Expected: FAIL, reporting `could not sum 1 of 0 paths`. Restore, and confirm `git diff internal/run/sum.go` is empty.
+In `internal/run/sum.go:64`, change `attempted += a` to `attempted -= a`. Run the same command. Expected: FAIL, reporting `could not sum 1 of -2 paths`. Restore, and confirm `git diff internal/run/sum.go` is empty.
 
 - [ ] **Step 6: Confirm the mutants are dead**
 
