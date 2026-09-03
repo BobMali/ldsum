@@ -205,6 +205,11 @@ pattern itself lives in `githooks/conventional-regex.txt`.
 A rejected commit is a message problem — fix the message rather than skipping
 the hook.
 
+Attribution trailers are rejected as well: `Co-Authored-By`, `Claude-Session`
+and `Generated with` lines do not belong in this history. The check is
+anchored to the start of a line, so a message that discusses such a trailer in
+prose still passes.
+
 ## Development
 
 ```sh

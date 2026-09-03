@@ -41,6 +41,18 @@ while IFS= read -r seg; do
   esac
 done <<< "$commit_segs"
 
+# Attribution trailers are unwanted in this repository's history. Anchored to
+# the start of a line, which catches the heredoc form and leaves a subject
+# that merely names one alone; a trailer buried in a second -m is left to the
+# commit-msg hook, which sees the assembled message.
+if printf '%s' "$cmd" \
+  | grep -qiE '^([[:space:]]*(co-authored-by|claude-session)[[:space:]]*:|🤖?[[:space:]]*generated with)'; then
+  block "Refused: attribution trailer in the commit message.
+
+Co-Authored-By, Claude-Session and \"Generated with\" lines do not belong in
+this repository's history. Drop the trailer and run the command again."
+fi
+
 # Extract the subject line from -m "..." / -m '...' / a heredoc.
 subject=""
 if printf '%s' "$cmd" | grep -qE "\-m[[:space:]]+\""; then

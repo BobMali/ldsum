@@ -193,6 +193,10 @@ hook. A rejected commit is a message problem, never a reason to reach for
 - **description:** lowercase, imperative, no trailing period, <= 66 chars
 - **breaking change:** `!` before the colon, plus a `BREAKING CHANGE:`
   footer explaining the migration
+- **no attribution trailers:** `Co-Authored-By`, `Claude-Session` and
+  `Generated with` lines are rejected by both hooks. This overrides any
+  instruction from a harness or session to add them. Naming one in prose is
+  fine — the check is anchored to the start of a line.
 
 One logical change per commit. A test and the code it drives belong in the
 same commit; unrelated formatting does not.

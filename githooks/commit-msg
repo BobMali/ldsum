@@ -17,6 +17,19 @@ case "$subject" in
   "") echo "commit-msg: empty commit message." >&2; exit 1 ;;
 esac
 
+# Attribution trailers are not wanted in this repository's history. Anchored
+# to the start of a line so a message that merely discusses one is fine.
+if grep -v '^#' "$msg_file" \
+  | grep -qiE '^([[:space:]]*(co-authored-by|claude-session)[[:space:]]*:|🤖?[[:space:]]*generated with)'; then
+  cat >&2 <<'MSG'
+commit-msg: attribution trailer in the commit message.
+
+Co-Authored-By, Claude-Session and "Generated with" lines do not belong in
+this repository's history. Remove the trailer and commit again.
+MSG
+  exit 1
+fi
+
 if printf '%s' "$subject" | grep -qE "$regex"; then
   exit 0
 fi
