@@ -299,7 +299,8 @@ varies from run to run. Any single run shows a subset of the rows below.
 | `internal/run/sum.go` — the `if err != nil` block after `WalkDir` returns (4 mutants) | Unreachable by construction: the callback returns `nil` for everything. The source comment says so and keeps it anyway. |
 | `cmd/exit.go` — the `if worst == 0` guard in `exitCode` (2 mutants) | Unreachable by construction: `VerifyErrors.Errs` is never empty and every member maps to exit 1 or 2, so `worst` is never 0. The guard is deliberate defensive code; kept anyway. |
 
-One run after the binary harness landed on 2026-09-02 scored 97% (0.965278,
-278 passed, 10 failed, 11 duplicated, 288 total) — a run's numbers, not the
-numbers, given the count above. A `FAIL` outside the table above is worth
-investigating; the score itself is a rough indicator, not a tripwire.
+One run against `24af39f` on 2026-09-03 scored 97% (0.966216, 286 passed,
+10 failed, 12 duplicated, 296 total), every survivor a row above — a run's
+numbers, not the numbers, given the count above. A `FAIL` outside the table
+above is worth investigating; the score itself is a rough indicator, not a
+tripwire.
