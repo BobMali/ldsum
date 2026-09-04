@@ -494,8 +494,9 @@ only counting it, and this failure is no different.
 ## Testing
 
 `internal/source` — `httptest`, which is standard library and a real server,
-not a mock. Tests build their client with `newClient(ts.Client().Transport)`,
-which is also how the TLS cases work at all: `httptest.NewTLSServer`'s
+not a mock. Tests build their client with
+`newClient(ts.Client().Transport.(*http.Transport))`, which is also how the
+TLS cases work at all: `httptest.NewTLSServer`'s
 certificate is not in the system pool, so a request from the package client
 fails with `x509: certificate signed by unknown authority` before any policy
 runs, and `--insecure` is out of scope.
