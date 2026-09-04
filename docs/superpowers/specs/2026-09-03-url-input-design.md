@@ -60,7 +60,10 @@ http scheme" — has readings that disagree on real inputs.
 3. `://` does not immediately follow the scheme → **path**. A file really
    called `weird:thing` parses with scheme `weird`, and `c:/x/https://y`
    with scheme `c`; requiring the slashes right after the scheme keeps both
-   as filenames.
+   as filenames. The test is
+   `strings.HasPrefix(ref[len(u.Scheme):], "://")`, indexing the *original*
+   string by the scheme's length rather than matching its text: `url.Parse`
+   lowercases the scheme, so `HTTPS://EX.ORG/f` would fail a text match.
 4. Scheme is `http` or `https` → **remote**. `url.Parse` lowercases the
    scheme, so `HTTPS://EX.ORG/f` is remote.
 5. Otherwise → **error**, `ftp://host/f: unsupported scheme "ftp"`, exit 2.
@@ -104,15 +107,23 @@ print a listing's bad-line warnings before saying the command was wrong.
 
 ## Resolution
 
-**Absolute references are used as they are.** An entry that is an absolute
-path is already resolved — that short-circuit exists today — and an entry
-that is a URL is likewise fetched from where it points, in every row of the
-table below. A URL is simply another kind of absolute reference, and this is
-the rule that keeps `resolve` from handing `filepath.Join` a URL, which
-mangles it (`filepath.Join("https://ex.org", "f")` is `https:/ex.org/f`).
+**A URL entry is used as it is, in every row.** An entry that spells out a
+full `http(s)` URL is fetched from where it points whatever `-c` was, and is
+never handed to `filepath.Join`, which mangles it
+(`filepath.Join("https://ex.org", "f")` is `https:/ex.org/f`).
 `filepath.Clean` mangles identically, so the `byPath` lookup in
 `selectTargets` must skip cleaning a remote entry too, or naming that entry
 on the command line reports `no entry for`.
+
+**An entry beginning `/` belongs to whichever namespace its base does.** In
+rows 1 and 2 it is a local absolute path and keeps the short-circuit it has
+today. In row 3 the base is a URL, so it is a URL path reference and
+resolves against the host: `/other/f` against
+`https://ex.org/v1.2/SHA256SUMS` is `https://ex.org/other/f`, not a local
+file. The two rules do not conflict — a URL entry names its own namespace, a
+`/` entry takes the base's — but an implementer reading only the first
+paragraph would short-circuit the `/` case wrongly, so both are spelled out
+and both are in the test list.
 
 **Relative entries** resolve against the listing:
 
@@ -145,18 +156,31 @@ was rejected because a forty-entry `SHA256SUMS` would then start forty
 downloads from one short command, and because the local-file case is the one
 people are in.
 
-**The exception.** A bare-digest checksum file names no path, so the file to
-check is a positional argument, which is cwd-relative like any user-named
-file. `--remote-targets` overrides that one case and resolves it against the
-sums URL:
+**There is no exception for bare-digest files.** An earlier draft had
+`--remote-targets` resolve the positional argument of a bare-digest file
+against the sums URL. That is dropped. The flag governs entries the
+*listing* names, and a bare-digest file names none; applying it to an
+argument the *user* typed would be the only place the flag silently rewrites
+`dist.tar.gz` — plainly meant as a file on disk — into a fetch. Anyone who
+wants the remote file can name it: `ldsum verify https://ex.org/v1.2/dist.tar.gz`
+with the digest, or with `-c` pointing at the `.sha256` beside it.
+
+Combining the two is therefore an error rather than a no-op, since a flag
+that does nothing is exactly what the second guard already refuses:
 
 ```
 $ ldsum verify -c https://ex.org/v1.2/dist.tar.gz.sha256 dist.tar.gz
-dist.tar.gz: OK                              # ./dist.tar.gz
+dist.tar.gz: OK                              # ./dist.tar.gz, flag or not
 
 $ ldsum verify -c https://ex.org/v1.2/dist.tar.gz.sha256 dist.tar.gz --remote-targets
-https://ex.org/v1.2/dist.tar.gz: OK          # fetched
+ldsum: https://ex.org/v1.2/dist.tar.gz.sha256: holds one checksum and no
+entries for --remote-targets to resolve
 ```
+
+Unlike the other two guards this one cannot be checked up front — whether a
+checksum file is bare-digest is only known once it is parsed — so it lives
+in `selectTargets`' bare branch beside `no paths in file` and
+`holds one checksum`, which are its siblings in every sense.
 
 A positional argument that is itself a URL is fetched with no flag at all,
 in every mode. That is the headline feature — `ldsum verify <url> <checksum>`
@@ -274,14 +298,21 @@ Built by cloning `http.DefaultTransport`, not by constructing a bare
 `&http.Transport{}`:
 
 ```go
-// Cloned rather than built from nothing: DefaultTransport is where
+// newClient returns a client over a clone of t. Cloning rather than
+// building from nothing is the point: DefaultTransport is where
 // ProxyFromEnvironment, HTTP/2 and the connection-pool settings live, and a
 // bare Transport has none of them — including no TLS handshake timeout.
 func newClient(t *http.Transport) *http.Client
-var client = newClient(http.DefaultTransport.(*http.Transport).Clone())
+var client = newClient(http.DefaultTransport.(*http.Transport))
 ```
 
-`newClient` sets, on the transport it is given:
+The parameter is `*http.Transport`, not `http.RoundTripper`: `newClient`
+sets fields, which only the concrete type has. A test therefore passes
+`ts.Client().Transport.(*http.Transport)` — that assertion holds, `httptest`
+builds its client's transport as one — and `newClient` cloning internally is
+what stops it from mutating the test server's own client.
+
+`newClient` sets, on its clone:
 
 - the dialer's `Timeout` — `dialTimeout`
 - `TLSHandshakeTimeout` — `tlsTimeout`
@@ -293,8 +324,8 @@ caps the whole request including the body read, so any value large enough for
 a 4 GB release artifact is too large to be a timeout, and any value small
 enough to be useful would abort legitimate downloads.
 
-`client` is a package-level `var` and `newClient` takes a `http.RoundTripper`
-so tests can build one over a test server's transport. This is the smallest
+`client` is a package-level `var` so tests can replace it with one built
+over a test server's transport. This is the smallest
 seam that makes the TLS and timeout cases testable at all — see *Testing* —
 and it is not the injected-`Fetcher` design that was considered and dropped:
 `Open`'s signature is unchanged and nothing outside the package sees a client.
@@ -376,8 +407,18 @@ which is right for a local file — reading one yields an `*fs.PathError`
 carrying the path — but a truncated response body yields a plain
 `unexpected EOF`, and `ldsum: unexpected EOF` names nothing. So that return
 gains the same guard `VerifySums` already uses: wrap with `read %s: %w`
-**only when the error is not already an `*fs.PathError`**. The local
-directory-read case stays byte-identical, which the existing tests check.
+**only when the error is not already an `*fs.PathError`**.
+
+The local read-error cases are unaffected, and this was checked against the
+tests rather than assumed. `TestVerifyErrors/"path is a directory"` and
+`/"unreadable file"` assert only that the error is non-nil and is *not*
+`fs.ErrNotExist` — neither pins a message, and a directory read yields an
+`*fs.PathError` on macOS anyway, so the guard leaves it alone. The one
+exact-message assertion in the package,
+`want := "open " + missing + ": no such file or directory"`, is on the
+*open* path, which `source.Open` returns unwrapped for exactly this reason.
+`sum_test.go`'s `"is a directory"` assertion is on `sumFile`, a different
+function this change does not touch.
 
 **`VerifySums`** — `os.Open(opts.SumsFile)` becomes `source.Open(...)`,
 returned bare exactly as it is today. It needs no new guard: a `*url.Error`
@@ -433,7 +474,15 @@ falls out of the error types that already exist:
 The 404 rows are the point. A missing target is the user's file to fix and
 exits 1; a missing *checksum file* is the command being wrong and exits 2 —
 the distinction `MissingTargetError`'s own comment says it was created for,
-now doing that job across a second kind of source. A run mixing a local
+now doing that job across a second kind of source.
+
+**`exitCode` gains no `*StatusError` arm, and must not.** A 404 checksum file
+reaches it as a bare `*StatusError`, which matches neither `*MismatchError`
+nor `*MissingTargetError`, so it falls to `default: 2` — which is the answer
+wanted. Adding an arm "for symmetry" with the target case would turn a
+missing checksum file into exit 1 and undo the whole distinction. Only
+`verifyEntry`, which knows it is looking at a target, converts a 404 into
+something that exits 1. A run mixing a local
 mismatch and a remote 500 still exits 2, because `VerifyErrors` already
 returns the worst code.
 
@@ -461,8 +510,10 @@ runs, and `--insecure` is out of scope.
 - `IsRemote` over: `https://`, `HTTPS://EX.ORG/f`, a relative path, an
   absolute path, `weird:thing`, `c:/x/https://y`, `mirror/https://ex.org/f`,
   a reference containing a newline (all paths), and `ftp://host/f` (error)
-- `JoinURL` over `sub/f`, `/f`, `../f`, `a b.txt`, `a#b.txt`, `a?b.txt`,
-  `100%.txt`, and a base carrying a query string
+- `JoinURL` over `sub/f`, `../f`, `a b.txt`, `a#b.txt`, `a?b.txt`,
+  `100%.txt`, and a base carrying a query string; plus `/other/f` against
+  `https://ex.org/v1.2/SHA256SUMS`, pinned to `https://ex.org/other/f` so
+  the row-3 reading of a leading `/` is held in place
 - a redirect chain that is followed
 - a redirect loop stops after ten hops
 - an `https` → `http` redirect is refused, asserting the full `url.Error`
@@ -491,8 +542,9 @@ runs, and `--insecure` is out of scope.
   listing
 - a URL entry spelled out in full is fetched in all three rows, and can be
   named as a positional argument without being mangled by `filepath.Clean`
-- a remote bare-digest file with one local positional argument, and the same
-  with `RemoteTargets: true` resolving that argument against the URL
+- a remote bare-digest file with one local positional argument, which
+  behaves the same whether or not `RemoteTargets` is set — because setting
+  it is an error, asserted separately and naming the flag
 - `RemoteTargets: true` with a local `-c` is an error, raised before the
   file is opened — proven by pointing `-c` at a path that does not exist and
   getting the flag error, not `no such file`
@@ -501,8 +553,12 @@ runs, and `--insecure` is out of scope.
 - warnings from a remote listing carry the URL as the file part:
   `https://ex.org/SHA256SUMS:3: not a checksum line`
 
-`cmd` — `--remote-targets` without `-c` is exit 2; the flag reaches
-`SumsOptions`.
+`cmd` — the flag reaches `SumsOptions`; and `--remote-targets` without `-c`
+is exit 2. That second case is asserted through `execute`, not by calling
+`run`: the guard is in `Args`, which Cobra runs *before* `RunE` sets
+`SilenceUsage`, so this is one of the few errors that still prints usage
+text. The test checks that it does, which is what stops a later refactor
+from moving the guard into `RunE` and silently changing the output.
 
 `main_test.go` — an end-to-end verify against a `httptest` server started in
 the harness, asserting exit 0, and one asserting exit 1 for a 404 target.
@@ -529,7 +585,12 @@ loopback TCP and unix sockets are both refused, and both succeed with
 `dangerouslyDisableSandbox`. So from this change onward `go test ./...`
 needs the sandbox disabled, and so do `gremlins unleash` and `go-mutesting`,
 which shell out to `go test`. CI and an ordinary terminal are unaffected.
-CLAUDE.md's paragraph on what the sandbox blocks has to say this.
+
+CLAUDE.md's paragraph on the sandbox opens "Anything that reaches the
+network fails under the Bash sandbox with a TLS certificate error", and that
+is no longer the whole truth: a loopback listener never reaches the network
+and fails earlier, at `bind`, with a different error. That sentence is the
+one to change, and the list after it gains the test commands.
 
 ## Documentation
 
