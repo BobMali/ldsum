@@ -538,7 +538,8 @@ runs, and `--insecure` is out of scope.
 - a remote listing with relative entries checks local files, proven by a
   working directory that is not where the fixture files are
 - the same listing under `RemoteTargets: true` fetches each entry, proven by
-  recording the paths the handler was asked for
+  the entries existing only on the test server, so a run that looked for them
+  locally would fail instead
 - `RemoteTargets: true` together with positional arguments filtering the
   listing
 - a URL entry spelled out in full is fetched in all three rows, and can be
