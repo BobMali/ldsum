@@ -31,3 +31,14 @@ func IsRemote(ref string) (bool, error) {
 	}
 	return false, fmt.Errorf("%s: unsupported scheme %q", ref, u.Scheme)
 }
+
+// JoinURL resolves the file name entry against the URL base. The entry is
+// built as a value rather than parsed: a checksum file lists file names, and
+// url.Parse would read a '#' in one as a fragment and a '?' as a query.
+func JoinURL(base, entry string) (string, error) {
+	b, err := url.Parse(base)
+	if err != nil {
+		return "", err
+	}
+	return b.ResolveReference(&url.URL{Path: entry}).String(), nil
+}

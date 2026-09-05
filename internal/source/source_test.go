@@ -63,3 +63,51 @@ func TestIsRemote(t *testing.T) {
 		})
 	}
 }
+
+func TestJoinURL(t *testing.T) {
+	const base = "https://ex.org/v1.2/SHA256SUMS"
+
+	tests := []struct {
+		name  string
+		base  string
+		entry string
+		want  string
+	}{
+		{name: "a sibling", base: base, entry: "dist.tar.gz",
+			want: "https://ex.org/v1.2/dist.tar.gz"},
+		{name: "a subdirectory", base: base, entry: "sub/f",
+			want: "https://ex.org/v1.2/sub/f"},
+		{name: "a parent", base: base, entry: "../f",
+			want: "https://ex.org/f"},
+		// An entry beginning "/" takes the base's namespace, so under a URL
+		// base it resolves against the host, not against the local root.
+		{name: "an absolute entry", base: base, entry: "/other/f",
+			want: "https://ex.org/other/f"},
+		// The four that prove the entry is a name and not a URL reference.
+		{name: "a space", base: base, entry: "a b.txt",
+			want: "https://ex.org/v1.2/a%20b.txt"},
+		{name: "a hash", base: base, entry: "a#b.txt",
+			want: "https://ex.org/v1.2/a%23b.txt"},
+		{name: "a question mark", base: base, entry: "a?b.txt",
+			want: "https://ex.org/v1.2/a%3Fb.txt"},
+		{name: "a percent", base: base, entry: "100%.txt",
+			want: "https://ex.org/v1.2/100%25.txt"},
+		// A query on the sums URL addresses that file, not its siblings.
+		{name: "a base carrying a query",
+			base: "https://ex.org/v1.2/SHA256SUMS?token=1", entry: "f",
+			want: "https://ex.org/v1.2/f"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := JoinURL(tt.base, tt.entry)
+			if err != nil {
+				t.Fatalf("JoinURL(%q, %q) error = %v", tt.base, tt.entry, err)
+			}
+			if got != tt.want {
+				t.Errorf("JoinURL(%q, %q) = %q, want %q",
+					tt.base, tt.entry, got, tt.want)
+			}
+		})
+	}
+}
