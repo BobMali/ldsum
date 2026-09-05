@@ -96,6 +96,10 @@ func TestJoinURL(t *testing.T) {
 		{name: "a base carrying a query",
 			base: "https://ex.org/v1.2/SHA256SUMS?token=1", entry: "f",
 			want: "https://ex.org/v1.2/f"},
+		{name: "a colon in a file name", base: base, entry: "weird:thing",
+			want: "https://ex.org/v1.2/weird:thing"},
+		{name: "a name that looks protocol-relative", base: base, entry: "//other.host/f",
+			want: "https://ex.org//other.host/f"},
 	}
 
 	for _, tt := range tests {
