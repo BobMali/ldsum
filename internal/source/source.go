@@ -15,7 +15,7 @@ import (
 func IsRemote(ref string) (bool, error) {
 	u, err := url.Parse(ref)
 	// A reference url.Parse rejects — one holding a control character, say —
-	// is a file name that will fail to open, not a malformed URL.
+	// is treated as a file name, not a malformed URL.
 	if err != nil || u.Scheme == "" {
 		return false, nil
 	}

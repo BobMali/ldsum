@@ -1,16 +1,18 @@
 package source
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 )
 
 func TestIsRemote(t *testing.T) {
 	tests := []struct {
-		name    string
-		ref     string
-		want    bool
-		wantErr bool
+		name       string
+		ref        string
+		want       bool
+		wantErr    bool
+		wantScheme string
 	}{
 		{name: "https URL", ref: "https://ex.org/f", want: true},
 		{name: "http URL", ref: "http://ex.org/f", want: true},
@@ -26,8 +28,10 @@ func TestIsRemote(t *testing.T) {
 		{name: "a path containing a URL", ref: "mirror/https://ex.org/f"},
 		// url.Parse rejects control characters, so this is a file name.
 		{name: "a newline in the reference", ref: "https://ex.org/a\nb"},
-		{name: "an unfetchable scheme", ref: "ftp://host/f", wantErr: true},
-		{name: "a file scheme", ref: "file:///etc/passwd", wantErr: true},
+		{name: "an unfetchable scheme", ref: "ftp://host/f", wantErr: true, wantScheme: "ftp"},
+		{name: "a file scheme", ref: "file:///etc/passwd", wantErr: true, wantScheme: "file"},
+		{name: "an uppercase unfetchable scheme", ref: "FTP://HOST/F", wantErr: true, wantScheme: "ftp"},
+		{name: "an empty reference", ref: ""},
 	}
 
 	for _, tt := range tests {
@@ -41,6 +45,12 @@ func TestIsRemote(t *testing.T) {
 				// says nothing the user can act on.
 				if !strings.Contains(err.Error(), tt.ref) {
 					t.Errorf("error = %q, want it to name %q", err, tt.ref)
+				}
+				if !strings.Contains(err.Error(), strconv.Quote(tt.wantScheme)) {
+					t.Errorf("error = %q, want it to name scheme %q", err, tt.wantScheme)
+				}
+				if got {
+					t.Errorf("IsRemote(%q) = true, want false alongside the error", tt.ref)
 				}
 				return
 			}
