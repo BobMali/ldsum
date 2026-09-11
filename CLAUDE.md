@@ -61,7 +61,15 @@ branch.
 
 `cobra-cli` is installed at `~/go/bin/cobra-cli`. Note that files it generates are **not** gofmt-clean — run `gofmt -w` on them afterwards.
 
-Anything that reaches the network fails under the Bash sandbox with a TLS certificate error (`CAfile: /etc/ssl/cert.pem`): module downloads (`go get`, `go mod tidy` on a new dep), `git push` / `git fetch`, and `gh`. Those need `dangerouslyDisableSandbox`. Ordinary build/test/vet work fine sandboxed.
+Two kinds of thing fail under the Bash sandbox. Anything that reaches the
+network fails with a TLS certificate error (`CAfile: /etc/ssl/cert.pem`):
+module downloads (`go get`, `go mod tidy` on a new dep), `git push` /
+`git fetch`, and `gh`. Anything that *listens* fails earlier, at `bind`
+(`listen tcp6 [::1]:0: bind: operation not permitted`) — which since
+`internal/source` arrived means `go test ./...` itself, because its
+`httptest` servers bind a loopback port, and with it `gremlins unleash` and
+`go-mutesting`, which shell out to `go test`. All of those need
+`dangerouslyDisableSandbox`. `go build` and `go vet` work fine sandboxed.
 
 ## Layout
 

@@ -4,9 +4,14 @@ package source
 
 import (
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
+	"os"
 	"strings"
 )
+
+var client = &http.Client{}
 
 // IsRemote reports whether ref names a URL this package fetches. A reference
 // shaped like a URL whose scheme cannot be fetched is an error rather than a
@@ -41,4 +46,44 @@ func JoinURL(base, entry string) (string, error) {
 		return "", err
 	}
 	return b.ResolveReference(&url.URL{Path: entry}).String(), nil
+}
+
+// Open returns a reader over what ref names. The caller closes it.
+func Open(ref string) (io.ReadCloser, error) {
+	remote, err := IsRemote(ref)
+	if err != nil {
+		return nil, err
+	}
+	if !remote {
+		// Returned unwrapped: os produces an *fs.PathError that already
+		// carries the operation and the path.
+		return os.Open(ref)
+	}
+	return get(ref)
+}
+
+// get fetches ref and returns its body, having first judged the status. The
+// order matters: an error page hashes as happily as a real file, so a 404
+// left unchecked is reported as a checksum mismatch.
+func get(ref string) (io.ReadCloser, error) {
+	resp, err := client.Get(ref)
+	if err != nil {
+		// *url.Error already names the operation and the URL.
+		return nil, err
+	}
+	// Division rather than a range compare: two mutants instead of four
+	// boundary ones, and the 200 and 404 cases kill both.
+	if resp.StatusCode/100 != 2 {
+		// Draining before Close lets the transport confirm the body was fully
+		// consumed, which is what lets it return the connection to the pool
+		// instead of tearing it down.
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+		return nil, &StatusError{
+			URL:    resp.Request.URL.String(),
+			Status: resp.Status,
+			Code:   resp.StatusCode,
+		}
+	}
+	return resp.Body, nil
 }
