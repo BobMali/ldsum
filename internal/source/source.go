@@ -13,6 +13,10 @@ import (
 
 var client = &http.Client{}
 
+// maxErrorBodyDrain bounds how much of a non-2xx body get reads before
+// closing it. It mirrors net/http's own post-Close drain limit.
+const maxErrorBodyDrain = 256 << 10
+
 // IsRemote reports whether ref names a URL this package fetches. A reference
 // shaped like a URL whose scheme cannot be fetched is an error rather than a
 // file name: reporting "no such file" for an ftp:// URL would hide what the
@@ -74,10 +78,13 @@ func get(ref string) (io.ReadCloser, error) {
 	// Division rather than a range compare: two mutants instead of four
 	// boundary ones, and the 200 and 404 cases kill both.
 	if resp.StatusCode/100 != 2 {
-		// Draining before Close lets the transport confirm the body was fully
-		// consumed, which is what lets it return the connection to the pool
-		// instead of tearing it down.
-		_, _ = io.Copy(io.Discard, resp.Body)
+		// The transport itself drains a short body on Close, but only
+		// asynchronously, so a following sequential request may not find the
+		// connection idle yet. Draining here makes reuse synchronous. The
+		// read is bounded because this body is never shown to anyone and the
+		// client has no overall timeout, so an unbounded drain could hang on
+		// a hostile or stalled server.
+		_, _ = io.CopyN(io.Discard, resp.Body, maxErrorBodyDrain)
 		_ = resp.Body.Close()
 		return nil, &StatusError{
 			URL:    resp.Request.URL.String(),

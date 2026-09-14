@@ -13,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestOpenPath(t *testing.T) {
@@ -176,6 +177,62 @@ func TestOpenURL(t *testing.T) {
 		}
 	})
 
+	// The drain of a non-2xx body must be bounded: nothing shows it to a
+	// user, and this client has no overall timeout, so an endless error
+	// body must not hang Open.
+	t.Run("an endless non-2xx body does not hang Open", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+				flusher := w.(http.Flusher)
+				chunk := bytes.Repeat([]byte("x"), 4*1024)
+				for {
+					if _, err := w.Write(chunk); err != nil {
+						return
+					}
+					flusher.Flush()
+					select {
+					case <-r.Context().Done():
+						return
+					default:
+					}
+				}
+			}))
+		defer ts.Close()
+
+		type result struct {
+			rc  io.ReadCloser
+			err error
+		}
+		done := make(chan result, 1)
+		go func() {
+			rc, err := Open(ts.URL + "/endless")
+			done <- result{rc, err}
+		}()
+
+		select {
+		case res := <-done:
+			if res.err == nil {
+				if res.rc != nil {
+					_ = res.rc.Close()
+				}
+				t.Fatal("Open() error = nil, want an error")
+			}
+			if res.rc != nil {
+				t.Error("Open() returned a reader alongside its error")
+			}
+			var statusErr *StatusError
+			if !errors.As(res.err, &statusErr) {
+				t.Fatalf("error = %T, want a *StatusError", res.err)
+			}
+			if statusErr.Code != 404 {
+				t.Errorf("StatusError.Code = %d, want 404", statusErr.Code)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("Open() hung draining an endless 404 body")
+		}
+	})
+
 	t.Run("a refused connection is an error", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(
 			func(_ http.ResponseWriter, _ *http.Request) {}))
@@ -202,6 +259,11 @@ func TestOpenURL(t *testing.T) {
 		}
 		if !strings.Contains(err.Error(), ref) {
 			t.Errorf("error = %q, want it to name %q", err, ref)
+		}
+		// errors.As would find the *url.Error through a wrapper too; only
+		// identity proves it came back bare.
+		if err != error(urlErr) {
+			t.Errorf("error = %T, want the *url.Error itself, not a wrapper around it", err)
 		}
 	})
 }
