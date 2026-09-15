@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"os"
 
 	"github.com/BobMali/ldsum/internal/checksums"
 	"github.com/BobMali/ldsum/internal/hash"
+	"github.com/BobMali/ldsum/internal/source"
 )
 
 // VerifyOptions is one verification request. An empty Algorithm means infer
@@ -58,7 +58,7 @@ func Verify(out, errOut io.Writer, opts VerifyOptions) error {
 
 // verifyEntry hashes one file and reports whether it matches.
 func verifyEntry(out, errOut io.Writer, path string, expected hash.Digest) error {
-	f, err := os.Open(path)
+	f, err := source.Open(path)
 	if err != nil {
 		// A file that cannot be read gets a verdict like any other, so a run
 		// over many files names it rather than only counting it.
@@ -75,6 +75,12 @@ func verifyEntry(out, errOut io.Writer, path string, expected hash.Digest) error
 		// A directory opens cleanly and fails only here, so this site needs the
 		// same verdict as the one above.
 		verdict(out, path, "FAILED open or read")
+		// A local read fails with an *fs.PathError that already names the
+		// file; a truncated response body fails with a bare "unexpected EOF".
+		var pathErr *fs.PathError
+		if !errors.As(err, &pathErr) {
+			err = fmt.Errorf("read %s: %w", path, err)
+		}
 		return err
 	}
 
