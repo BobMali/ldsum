@@ -12,13 +12,15 @@ import (
 
 	"github.com/BobMali/ldsum/internal/checksums"
 	"github.com/BobMali/ldsum/internal/hash"
+	"github.com/BobMali/ldsum/internal/source"
 )
 
 // SumsOptions is one request to verify against a checksum file. An empty
 // Paths means every entry the file lists.
 type SumsOptions struct {
-	SumsFile string
-	Paths    []string
+	SumsFile      string
+	Paths         []string
+	RemoteTargets bool
 }
 
 // VerifyErrors reports every file that failed in one run. Errs is never empty.
@@ -43,6 +45,18 @@ type target struct {
 // stop the run: every file is reported, and the returned error says how many
 // failed.
 func VerifySums(out, errOut io.Writer, opts SumsOptions) error {
+	// Checked before the file is opened: a guard further down would report a
+	// missing local file and never mention the flag that was wrong.
+	if opts.RemoteTargets {
+		remote, err := source.IsRemote(opts.SumsFile)
+		if err != nil {
+			return err
+		}
+		if !remote {
+			return errors.New("--remote-targets needs a URL for --sums-file")
+		}
+	}
+
 	f, err := os.Open(opts.SumsFile)
 	if err != nil {
 		return err

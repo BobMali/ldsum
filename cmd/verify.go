@@ -11,8 +11,9 @@ import (
 // two trees in the same process never share them.
 func newVerifyCmd() *cobra.Command {
 	var (
-		algorithm string
-		sumsFile  string
+		algorithm     string
+		sumsFile      string
+		remoteTargets bool
 	)
 
 	cmd := &cobra.Command{
@@ -33,6 +34,11 @@ the flag checks only those entries; naming none checks them all.
 It exits 0 when every digest matched, 1 when one did not or a file is
 missing, and 2 when the command itself was wrong.`,
 		Args: func(cmd *cobra.Command, args []string) error {
+			// The flag resolves a listing's entries, so with no listing there
+			// is nothing for it to do.
+			if cmd.Flags().Changed("remote-targets") && !cmd.Flags().Changed("sums-file") {
+				return errors.New("--remote-targets needs --sums-file")
+			}
 			if cmd.Flags().Changed("sums-file") {
 				// An empty -c is the flag itself being wrong. Falling through
 				// to inline mode would complain about the argument count and
@@ -52,8 +58,9 @@ missing, and 2 when the command itself was wrong.`,
 			cmd.SilenceUsage = true
 			if sumsFile != "" {
 				return run.VerifySums(cmd.OutOrStdout(), cmd.ErrOrStderr(), run.SumsOptions{
-					SumsFile: sumsFile,
-					Paths:    args,
+					SumsFile:      sumsFile,
+					Paths:         args,
+					RemoteTargets: remoteTargets,
 				})
 			}
 			return run.Verify(cmd.OutOrStdout(), cmd.ErrOrStderr(), run.VerifyOptions{
@@ -68,6 +75,8 @@ missing, and 2 when the command itself was wrong.`,
 		"checksum algorithm: sha256 or sha512 (inferred from the checksum length when omitted)")
 	cmd.Flags().StringVarP(&sumsFile, "sums-file", "c", "",
 		"read the expected checksums from this file")
+	cmd.Flags().BoolVar(&remoteTargets, "remote-targets", false,
+		"fetch the files a remote checksum file lists, instead of reading them from the working directory")
 	cmd.MarkFlagsMutuallyExclusive("algo", "sums-file")
 
 	return cmd
