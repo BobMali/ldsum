@@ -5,13 +5,10 @@ package source
 import (
 	"fmt"
 	"io"
-	"net/http"
 	"net/url"
 	"os"
 	"strings"
 )
-
-var client = &http.Client{}
 
 // maxErrorBodyDrain bounds how much of a non-2xx body get reads before
 // closing it. It mirrors net/http's own post-Close drain limit.
