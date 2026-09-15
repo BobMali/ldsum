@@ -31,3 +31,23 @@ func TestVerifySumsRemoteTargetsNeedsARemoteSumsFile(t *testing.T) {
 			out.String(), errOut.String())
 	}
 }
+
+// An unfetchable scheme is IsRemote's own error, not "needs a URL": the user
+// did give a URL, just one this tool cannot fetch, and conflating the two
+// would blame the wrong thing.
+func TestVerifySumsRemoteTargetsUnsupportedScheme(t *testing.T) {
+	var out, errOut bytes.Buffer
+	err := VerifySums(&out, &errOut, SumsOptions{
+		SumsFile:      "ftp://host/SHA256SUMS",
+		RemoteTargets: true,
+	})
+	if err == nil {
+		t.Fatal("VerifySums() error = nil, want the unsupported scheme to be refused")
+	}
+	if !strings.Contains(err.Error(), "unsupported scheme") {
+		t.Errorf("error = %q, want it to name the unsupported scheme", err)
+	}
+	if strings.Contains(err.Error(), "needs a URL") {
+		t.Errorf("error = %q, want the scheme error, not the flag error", err)
+	}
+}
