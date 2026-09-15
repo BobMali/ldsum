@@ -168,6 +168,9 @@ func TestClientRefusesAnHTTPSDowngrade(t *testing.T) {
 	if !strings.Contains(err.Error(), secure.URL) {
 		t.Errorf("error = %q, want it to name the https URL", err)
 	}
+	if !strings.Contains(err.Error(), plain.URL+"/SHA256SUMS") {
+		t.Errorf("error = %q, want it to name the http target", err)
+	}
 }
 
 // The stall has to happen BEFORE the headers are written. A handler that

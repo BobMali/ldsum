@@ -16,10 +16,6 @@ var (
 	maxRedirects  = 10
 )
 
-// keepAlive preserves what DefaultTransport's own dialer set; replacing
-// DialContext to add dialTimeout would otherwise silently drop it.
-const keepAlive = 30 * time.Second
-
 var client = newClient(http.DefaultTransport.(*http.Transport))
 
 // newClient returns a client over a clone of t. Cloning rather than building
@@ -29,8 +25,7 @@ var client = newClient(http.DefaultTransport.(*http.Transport))
 func newClient(t *http.Transport) *http.Client {
 	tr := t.Clone()
 	tr.DialContext = (&net.Dialer{
-		Timeout:   dialTimeout,
-		KeepAlive: keepAlive,
+		Timeout: dialTimeout,
 	}).DialContext
 	tr.TLSHandshakeTimeout = tlsTimeout
 	tr.ResponseHeaderTimeout = headerTimeout
