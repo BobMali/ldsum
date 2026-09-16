@@ -268,3 +268,53 @@ func TestVerifySumsRemoteWarningsNameTheURL(t *testing.T) {
 		t.Errorf("stderr = %q, want it to start a warning with %q", errOut.String(), want)
 	}
 }
+
+// Under a URL base with --remote-targets, a leading-"/" entry is a URL path
+// on that host, not a local absolute path: resolve must reach JoinURL before
+// the filepath.IsAbs short-circuit. A full-URL entry in the same listing is
+// fetched from where it points, same as in every other row.
+func TestVerifySumsRemoteTargetsRootPathAndURLEntry(t *testing.T) {
+	files := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, "abc")
+		}))
+	defer files.Close()
+	entry := files.URL + "/elsewhere/g"
+
+	ts := sumsServer(t, abcSHA256+"  /other/f\n"+abcSHA256+"  "+entry+"\n",
+		map[string]string{"/other/f": "abc"})
+
+	var out, errOut bytes.Buffer
+	err := VerifySums(&out, &errOut, SumsOptions{
+		SumsFile:      ts.URL + "/v1.2/SHA256SUMS",
+		RemoteTargets: true,
+	})
+	if err != nil {
+		t.Fatalf("VerifySums() error = %v", err)
+	}
+	want := ts.URL + "/other/f: OK\n" + entry + ": OK\n"
+	if out.String() != want {
+		t.Errorf("stdout = %q, want %q", out.String(), want)
+	}
+}
+
+// A remote listing's target can 404 too: the mismatch between "the checksum
+// file was unreachable" (exit 2) and "the named file is missing" (exit 1)
+// has to hold for a fetched target as well as a local one.
+func TestVerifySumsRemoteTargetsMissingTargetIs404(t *testing.T) {
+	ts := sumsServer(t, abcSHA256+"  a.txt\n", nil)
+
+	var out, errOut bytes.Buffer
+	err := VerifySums(&out, &errOut, SumsOptions{
+		SumsFile:      ts.URL + "/v1.2/SHA256SUMS",
+		RemoteTargets: true,
+	})
+	var missing *MissingTargetError
+	if !errors.As(err, &missing) {
+		t.Fatalf("VerifySums() error = %T (%v), want a *MissingTargetError", err, err)
+	}
+	want := ts.URL + "/v1.2/a.txt: FAILED open or read\n"
+	if out.String() != want {
+		t.Errorf("stdout = %q, want %q", out.String(), want)
+	}
+}
