@@ -9,6 +9,9 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -105,6 +108,42 @@ func TestBinarySumPrintsADigest(t *testing.T) {
 			}
 			if stderr != "" {
 				t.Errorf("stderr = %q, want empty", stderr)
+			}
+		})
+	}
+}
+
+// The only place the real http client runs in a real process. A plain server,
+// not a TLS one: the child process has its own client and no way to be handed
+// a test certificate.
+func TestBinaryVerifiesAURL(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/payload.txt" {
+				http.NotFound(w, r)
+				return
+			}
+			_, _ = io.WriteString(w, "abc")
+		}))
+	defer ts.Close()
+
+	tests := []struct {
+		name string
+		url  string
+		want int
+	}{
+		{name: "a matching digest", url: ts.URL + "/payload.txt", want: 0},
+		{name: "a missing file", url: ts.URL + "/gone.txt", want: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout, stderr, code := run(t, t.TempDir(), "verify", tt.url, abcSHA256)
+			if code != tt.want {
+				t.Errorf("exit = %d, want %d\nstdout: %s\nstderr: %s", code, tt.want, stdout, stderr)
+			}
+			if !strings.Contains(stdout, tt.url) {
+				t.Errorf("stdout = %q, want it to name the URL", stdout)
 			}
 		})
 	}
