@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"net/url"
 	"path/filepath"
 	"slices"
 
@@ -69,8 +68,7 @@ func VerifySums(out, errOut io.Writer, opts SumsOptions) error {
 		// errors arrive bare. A failed read is already an *fs.PathError and
 		// must not gain a second copy of the operation and path.
 		var pathErr *fs.PathError
-		var urlErr *url.Error
-		if !errors.As(err, &pathErr) && !errors.As(err, &urlErr) {
+		if !errors.As(err, &pathErr) {
 			err = fmt.Errorf("read %s: %w", opts.SumsFile, err)
 		}
 		return err
@@ -146,20 +144,6 @@ func resolve(base, p string, remote bool) (string, error) {
 	return filepath.Join(base, p), nil
 }
 
-// entryKey is how an entry is matched against a positional argument.
-// filepath.Clean lets "./a.txt" match "a.txt", but it mangles a URL the same
-// way filepath.Join does, so a remote entry is matched as written.
-func entryKey(p string) (string, error) {
-	remote, err := source.IsRemote(p)
-	if err != nil {
-		return "", err
-	}
-	if remote {
-		return p, nil
-	}
-	return filepath.Clean(p), nil
-}
-
 // selectTargets works out which files the listing asks for. The mode is a
 // property of the whole listing, not of any one line: a single pathless entry
 // is a bare-digest file, and a stray one among many is just a broken line.
@@ -230,20 +214,13 @@ func selectTargets(listing checksums.Listing, opts SumsOptions) ([]target, []war
 	// of those entries or the argument would change what gets checked.
 	byPath := make(map[string][]checksums.Entry, len(named))
 	for _, e := range named {
-		key, err := entryKey(e.Path)
-		if err != nil {
-			return nil, warnings, err
-		}
+		key := filepath.Clean(e.Path)
 		byPath[key] = append(byPath[key], e)
 	}
 
 	targets := make([]target, 0, len(opts.Paths))
 	for _, p := range opts.Paths {
-		key, err := entryKey(p)
-		if err != nil {
-			return nil, warnings, err
-		}
-		entries, ok := byPath[key]
+		entries, ok := byPath[filepath.Clean(p)]
 		if !ok {
 			return nil, warnings, fmt.Errorf("%s: no entry for %s", opts.SumsFile, p)
 		}
