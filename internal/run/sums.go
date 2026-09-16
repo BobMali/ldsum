@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"os"
+	"net/url"
 	"path/filepath"
 	"slices"
 
@@ -57,7 +57,7 @@ func VerifySums(out, errOut io.Writer, opts SumsOptions) error {
 		}
 	}
 
-	f, err := os.Open(opts.SumsFile)
+	f, err := source.Open(opts.SumsFile)
 	if err != nil {
 		return err
 	}
@@ -69,7 +69,8 @@ func VerifySums(out, errOut io.Writer, opts SumsOptions) error {
 		// errors arrive bare. A failed read is already an *fs.PathError and
 		// must not gain a second copy of the operation and path.
 		var pathErr *fs.PathError
-		if !errors.As(err, &pathErr) {
+		var urlErr *url.Error
+		if !errors.As(err, &pathErr) && !errors.As(err, &urlErr) {
 			err = fmt.Errorf("read %s: %w", opts.SumsFile, err)
 		}
 		return err
@@ -121,14 +122,42 @@ func warnLine(errOut io.Writer, file string, line int, msg string) {
 	fmt.Fprintf(errOut, "%s:%d: %s\n", file, line, msg)
 }
 
-// resolve places a listed path against the checksum file's directory. An
-// absolute entry already says where its file is, and joining would corrupt it:
-// Join doubles the path, or strips the leading separator when base is ".".
-func resolve(base, p string) string {
-	if filepath.IsAbs(p) {
-		return p
+// resolve places a listed entry against the base the listing came from.
+// remote says whether that base is a URL.
+//
+// An entry that is itself a URL names its own host and is returned untouched:
+// filepath.Join would turn it into "https:/host/f". A local absolute entry
+// keeps the same short-circuit, but only while the base is local — under a URL
+// base a leading "/" is a URL path and belongs to that host.
+func resolve(base, p string, remote bool) (string, error) {
+	entryRemote, err := source.IsRemote(p)
+	if err != nil {
+		return "", err
 	}
-	return filepath.Join(base, p)
+	if entryRemote {
+		return p, nil
+	}
+	if remote {
+		return source.JoinURL(base, p)
+	}
+	if filepath.IsAbs(p) {
+		return p, nil
+	}
+	return filepath.Join(base, p), nil
+}
+
+// entryKey is how an entry is matched against a positional argument.
+// filepath.Clean lets "./a.txt" match "a.txt", but it mangles a URL the same
+// way filepath.Join does, so a remote entry is matched as written.
+func entryKey(p string) (string, error) {
+	remote, err := source.IsRemote(p)
+	if err != nil {
+		return "", err
+	}
+	if remote {
+		return p, nil
+	}
+	return filepath.Clean(p), nil
 }
 
 // selectTargets works out which files the listing asks for. The mode is a
@@ -136,6 +165,13 @@ func resolve(base, p string) string {
 // is a bare-digest file, and a stray one among many is just a broken line.
 func selectTargets(listing checksums.Listing, opts SumsOptions) ([]target, []warning, error) {
 	if len(listing.Entries) == 1 && listing.Entries[0].Path == "" {
+		// A bare-digest file names no entries, so there is nothing for the
+		// flag to resolve. Silently ignoring it would hide a wrong command.
+		if opts.RemoteTargets {
+			return nil, nil, fmt.Errorf(
+				"%s: holds one checksum and no entries for --remote-targets to resolve",
+				opts.SumsFile)
+		}
 		if len(opts.Paths) == 0 {
 			return nil, nil, fmt.Errorf(
 				"%s: no paths in file; name the file to verify", opts.SumsFile)
@@ -161,15 +197,29 @@ func selectTargets(listing checksums.Listing, opts SumsOptions) ([]target, []war
 		return nil, warnings, fmt.Errorf("%s: no checksum lines found", opts.SumsFile)
 	}
 
+	// Where a relative entry points: the checksum file's directory when it is
+	// local, the working directory when it is a URL — a URL has no local
+	// directory — and the URL itself when the caller asked for that.
+	sumsRemote, err := source.IsRemote(opts.SumsFile)
+	if err != nil {
+		return nil, warnings, err
+	}
 	base := filepath.Dir(opts.SumsFile)
+	switch {
+	case sumsRemote && opts.RemoteTargets:
+		base = opts.SumsFile
+	case sumsRemote:
+		base = "."
+	}
 
 	if len(opts.Paths) == 0 {
 		targets := make([]target, 0, len(named))
 		for _, e := range named {
-			targets = append(targets, target{
-				path:   resolve(base, e.Path),
-				digest: e.Digest,
-			})
+			path, err := resolve(base, e.Path, sumsRemote && opts.RemoteTargets)
+			if err != nil {
+				return nil, warnings, err
+			}
+			targets = append(targets, target{path: path, digest: e.Digest})
 		}
 		return targets, warnings, nil
 	}
@@ -180,21 +230,29 @@ func selectTargets(listing checksums.Listing, opts SumsOptions) ([]target, []war
 	// of those entries or the argument would change what gets checked.
 	byPath := make(map[string][]checksums.Entry, len(named))
 	for _, e := range named {
-		key := filepath.Clean(e.Path)
+		key, err := entryKey(e.Path)
+		if err != nil {
+			return nil, warnings, err
+		}
 		byPath[key] = append(byPath[key], e)
 	}
 
 	targets := make([]target, 0, len(opts.Paths))
 	for _, p := range opts.Paths {
-		entries, ok := byPath[filepath.Clean(p)]
+		key, err := entryKey(p)
+		if err != nil {
+			return nil, warnings, err
+		}
+		entries, ok := byPath[key]
 		if !ok {
 			return nil, warnings, fmt.Errorf("%s: no entry for %s", opts.SumsFile, p)
 		}
 		for _, e := range entries {
-			targets = append(targets, target{
-				path:   resolve(base, e.Path),
-				digest: e.Digest,
-			})
+			path, err := resolve(base, e.Path, sumsRemote && opts.RemoteTargets)
+			if err != nil {
+				return nil, warnings, err
+			}
+			targets = append(targets, target{path: path, digest: e.Digest})
 		}
 	}
 	return targets, warnings, nil
