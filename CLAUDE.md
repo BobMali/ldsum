@@ -81,6 +81,10 @@ tested against a separately launched process. The `cmd/` directory holds
 `exit.go` (error-to-exit-code mapping), and test files. The `internal/hash/`
 package computes digests from an `io.Reader` and parses checksum strings. The
 `internal/checksums/` package renders and parses checksum-file lines. The
+`internal/source/` package turns a reference — a path or an http(s) URL —
+into an `io.ReadCloser`, and is the only package that reaches the network. It
+is the one place that takes a reference rather than a reader, which is what
+lets `hash` and `checksums` go on taking readers. The
 `internal/run/` package orchestrates each command and returns errors.
 
 The module path is `github.com/BobMali/ldsum`.
@@ -120,6 +124,7 @@ main_test.go         // builds ldsum and runs it as a process
 cmd/                 // cobra command wiring, flag parsing
 internal/hash/       // io.Reader -> digest; knows nothing about files
 internal/checksums/  // render and parse checksum-file lines
+internal/source/     // reference (path or URL) -> io.ReadCloser
 internal/run/        // orchestration; returns errors, never exits
 testdata/
 ```

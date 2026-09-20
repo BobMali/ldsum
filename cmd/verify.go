@@ -27,9 +27,14 @@ unless --algo names one.
 
 Given --sums-file, it reads the expected checksums from a checksum file
 instead, recognising the GNU text and binary formats, the BSD tagged format,
-and a file holding a bare digest. Entries are resolved relative to the
-checksum file, so the command works from any directory. Naming files after
-the flag checks only those entries; naming none checks them all.
+and a file holding a bare digest. Entries in a local checksum file are
+resolved relative to it, so the command works from any directory. Naming
+files after the flag checks only those entries; naming none checks them all.
+
+Either the file or the checksum file may be given as an http(s) URL. Entries
+in a checksum file read from a URL name files in the working directory unless
+--remote-targets is given, which resolves them against the checksum file's URL
+and fetches them.
 
 It exits 0 when every digest matched, 1 when one did not or a file is
 missing, and 2 when the command itself was wrong.`,

@@ -8,8 +8,8 @@ a release, say. `ldsum` prints whether the computed digest matches and exits
 non-zero when it does not, so it drops into a script.
 
 > **Status:** `sum` computes checksums for local files and directories.
-> `verify` works with local files, given a checksum inline or read from a
-> checksum file. URL input is not yet implemented.
+> `verify` works with local files and URLs, given a checksum inline or read
+> from a checksum file that is itself a local file or a URL.
 
 ## Usage
 
@@ -159,6 +159,32 @@ Lines that are not checksums are named on stderr and skipped; a file with no
 usable lines is an error. `--algo` and `--sums-file` cannot be combined —
 the file says which algorithm each entry uses.
 
+### Verify something published on the web
+
+The file, the checksum file, or both may be URLs:
+
+```sh
+ldsum verify https://ex.org/v1.2/dist.tar.gz $EXPECTED
+ldsum verify -c https://ex.org/v1.2/SHA256SUMS
+```
+
+A checksum file given by URL lists file names, and by default those name
+files in the working directory — the usual case is that you have already
+downloaded the release and want to check it against the published sums.
+`--remote-targets` resolves them against the checksum file's URL and fetches
+each one instead.
+
+| `-c` is | relative entries resolve against |
+|---|---|
+| a local path | the checksum file's own directory |
+| a URL | the working directory |
+| a URL, with `--remote-targets` | the checksum file's URL |
+
+An entry that spells out a full URL is fetched from where it points in every
+case. `https` is never downgraded to `http` by a redirect, and the response
+is hashed exactly as sent — `ldsum` does not accept the transparent gzip a
+browser would.
+
 ## Exit codes
 
 Both subcommands exit so they drop straight into a script:
@@ -238,6 +264,10 @@ means some behaviour has no test holding it in place.
 go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
 gremlins unleash    # about 48 seconds; exit 10 (efficacy) or 11 (mcover) means a threshold was breached
 ```
+
+Run `go clean -testcache` first: gremlins sizes each mutant's time budget from
+the coverage-gathering step, and a cached step yields a budget too small for
+the recompile every mutant needs, so a warm cache times out most mutants.
 
 Settings and the thresholds live in `.gremlins.yaml`. Run it locally before a
 push that touches `internal/` or `cmd/`, or let CI find it.

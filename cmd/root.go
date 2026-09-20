@@ -45,8 +45,9 @@ sum prints the digest of a file or a whole tree, in the GNU coreutils text and
 binary formats, the BSD tagged format, or on its own.
 
 verify checks files against the checksums they are expected to have, given
-inline or read from a checksum file such as a published SHA256SUMS. Reading
-the file itself from a URL is planned and not yet implemented.
+inline or read from a checksum file such as a published SHA256SUMS. The file
+being checked and the checksum file may each be a local path or an http(s)
+URL.
 
 Both exit non-zero when the answer is no, so they drop straight into a script.`,
 		// execute prints errors itself, so Cobra must not print a second copy.
