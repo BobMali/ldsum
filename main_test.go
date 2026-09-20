@@ -145,6 +145,11 @@ func TestBinaryVerifiesAURL(t *testing.T) {
 			if !strings.Contains(stdout, tt.url) {
 				t.Errorf("stdout = %q, want it to name the URL", stdout)
 			}
+			// Pins that a missing file exits 1 because the server said 404, not
+			// because the URL was mistaken for a local path that doesn't exist.
+			if tt.want == 1 && !strings.Contains(stderr, "404 Not Found") {
+				t.Errorf("stderr = %q, want it to name the 404", stderr)
+			}
 		})
 	}
 }
