@@ -163,8 +163,9 @@ func TestVerifySumsURLEntryIsUsedAsItIs(t *testing.T) {
 	}
 }
 
-// Naming that entry as an argument must find it: filepath.Clean would turn
-// "https://host/f" into "https:/host/f" and the lookup would miss.
+// Naming that entry as an argument must find it and fetch it: the lookup is
+// on the entry as the file spells it, and the match must not send a URL
+// through filepath.Join on its way to being opened.
 func TestVerifySumsURLEntryCanBeNamed(t *testing.T) {
 	files := httptest.NewServer(http.HandlerFunc(
 		func(w http.ResponseWriter, _ *http.Request) {

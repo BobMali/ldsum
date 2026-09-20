@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -151,25 +152,26 @@ func TestOpenURL(t *testing.T) {
 		}
 	})
 
-	// A non-2xx body that is not closed holds its connection open, so a
-	// forty-entry listing of 404s would leak forty of them. Counted through
-	// ConnState rather than asserted directly: a closed body is returned to
-	// the pool and reused, an unclosed one is not.
+	// get drains a non-2xx body before closing it so the connection is back
+	// in the pool before the next sequential request. Close alone also
+	// drains, but asynchronously, so a listing of 404s would race it and
+	// open a fresh connection each time. Counted through ConnState: pooled
+	// means one connection for five requests. The counter is atomic because
+	// ConnState runs on the server's goroutine.
 	t.Run("a non-2xx response closes its body", func(t *testing.T) {
-		var opened int
+		var opened atomic.Int32
 		ts := httptest.NewUnstartedServer(http.HandlerFunc(
 			func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusNotFound)
-				// Bigger than a socket read buffer: an undrained Close then
-				// can't have reached EOF, so the connection can't be pooled
-				// for reuse. A short body like http.NotFound's often arrives
-				// whole before Close runs regardless, which is what let a
-				// missing drain pass this check most of the time.
+				// Bigger than a socket read buffer, so the body is still in
+				// flight when get closes it and the race is real. Kept below
+				// the 256 KiB drain bound: stopping exactly at the bound never
+				// observes EOF, which is the asynchronous path again.
 				_, _ = w.Write(bytes.Repeat([]byte("x"), 64*1024))
 			}))
 		ts.Config.ConnState = func(_ net.Conn, state http.ConnState) {
 			if state == http.StateNew {
-				opened++
+				opened.Add(1)
 			}
 		}
 		ts.Start()
@@ -182,9 +184,9 @@ func TestOpenURL(t *testing.T) {
 				t.Fatal("Open() error = nil, want a 404 error")
 			}
 		}
-		if opened != 1 {
-			t.Errorf("opened %d connections for 5 requests, want 1 — a 404 body was left open",
-				opened)
+		if n := opened.Load(); n != 1 {
+			t.Errorf("opened %d connections for 5 requests, want 1 — a 404 body was not drained",
+				n)
 		}
 	})
 

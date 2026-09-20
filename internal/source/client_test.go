@@ -108,7 +108,7 @@ func TestClientReportsTheFinalURLOnAStatusError(t *testing.T) {
 		t.Fatalf("error = %v, want a *StatusError", err)
 	}
 	if want := ts.URL + "/gone"; statusErr.URL != want {
-		t.Errorf("StatusError.URL = %q, want %q — the URL before the redirect", statusErr.URL, want)
+		t.Errorf("StatusError.URL = %q, want %q — the URL the redirect landed on", statusErr.URL, want)
 	}
 }
 
