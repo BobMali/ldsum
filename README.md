@@ -106,9 +106,9 @@ A verdict line spells the path the same way the checksum file did, escapes and
 leading `\` included, so a newline in a path cannot forge a second line for a
 script reading stdout.
 
-Entries resolve relative to **the checksum file's directory**, not the working
-directory — a published `SHA256SUMS` sits beside the files it describes, so
-that is what its paths mean:
+Entries in a local checksum file resolve relative to **the checksum file's
+directory**, not the working directory — a published `SHA256SUMS` sits beside
+the files it describes, so that is what its paths mean:
 
 ```sh
 ldsum verify -c ~/downloads/SHA256SUMS      # no need to cd first
@@ -123,8 +123,8 @@ ldsum sum /srv/dist/app.tar.gz > SUMS
 ldsum verify -c SUMS
 ```
 
-This is the main place `ldsum` differs from `sha256sum -c`, which resolves
-against the working directory.
+For a local checksum file, this is the main place `ldsum` differs from
+`sha256sum -c`, which resolves against the working directory.
 
 Naming files checks only those entries, in the order given:
 
