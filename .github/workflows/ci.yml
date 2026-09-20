@@ -63,8 +63,12 @@ jobs:
       # Thresholds live in .gremlins.yaml, which is also the only place they
       # work: the --threshold-* flags are accepted and then ignored. An
       # efficacy breach exits 10, an mcover breach 11 -- either fails the step.
+      # setup-go restores GOCACHE by default, and a warm test cache starves
+      # each mutant's time budget, so the cache is cleared first.
       - name: gremlins unleash
-        run: gremlins unleash
+        run: |
+          go clean -testcache
+          gremlins unleash
 
   commits:
     name: commit messages
