@@ -318,3 +318,26 @@ func TestVerifySumsRemoteTargetsMissingTargetIs404(t *testing.T) {
 		t.Errorf("stdout = %q, want %q", out.String(), want)
 	}
 }
+
+// A URL entry is used as it is under a remote listing too, without
+// --remote-targets: the entryRemote short-circuit in resolve runs before the
+// base switch, so row 2 needs nothing extra to hold.
+func TestVerifySumsRemoteListingURLEntryIsUsedAsItIs(t *testing.T) {
+	files := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, _ *http.Request) {
+			_, _ = io.WriteString(w, "abc")
+		}))
+	defer files.Close()
+	entry := files.URL + "/elsewhere/a.txt"
+
+	ts := sumsServer(t, abcSHA256+"  "+entry+"\n", nil)
+
+	var out, errOut bytes.Buffer
+	err := VerifySums(&out, &errOut, SumsOptions{SumsFile: ts.URL + "/v1.2/SHA256SUMS"})
+	if err != nil {
+		t.Fatalf("VerifySums() error = %v", err)
+	}
+	if want := entry + ": OK\n"; out.String() != want {
+		t.Errorf("stdout = %q, want %q", out.String(), want)
+	}
+}
