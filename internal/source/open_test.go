@@ -62,6 +62,17 @@ func TestOpenPath(t *testing.T) {
 			t.Fatal("Open() error = nil, want an unsupported-scheme error")
 		}
 	})
+
+	t.Run("a missing local file returns no reader alongside its error", func(t *testing.T) {
+		missing := filepath.Join(t.TempDir(), "nope.txt")
+		rc, err := Open(missing)
+		if err == nil {
+			t.Fatal("Open() error = nil, want an error")
+		}
+		if rc != nil {
+			t.Errorf("reader = %v, want nil alongside an error", rc)
+		}
+	})
 }
 
 func TestOpenURL(t *testing.T) {

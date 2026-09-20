@@ -58,7 +58,11 @@ func Open(ref string) (io.ReadCloser, error) {
 	if !remote {
 		// Returned unwrapped: os produces an *fs.PathError that already
 		// carries the operation and the path.
-		return os.Open(ref)
+		f, err := os.Open(ref)
+		if err != nil {
+			return nil, err
+		}
+		return f, nil
 	}
 	return get(ref)
 }
@@ -80,7 +84,7 @@ func get(ref string) (io.ReadCloser, error) {
 		// connection idle yet. Draining here makes reuse synchronous. The
 		// read is bounded because this body is never shown to anyone and the
 		// client has no overall timeout, so an unbounded drain could hang on
-		// a hostile or stalled server.
+		// a hostile or endless server.
 		_, _ = io.CopyN(io.Discard, resp.Body, maxErrorBodyDrain)
 		_ = resp.Body.Close()
 		return nil, &StatusError{
