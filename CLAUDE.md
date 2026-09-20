@@ -36,7 +36,7 @@ go run . --help                 # run the CLI
 go test ./...                   # all tests
 go test ./cmd -run TestFoo      # a single test
 golangci-lint run               # lint; config in .golangci.yml
-gremlins unleash                # mutation testing; config in .gremlins.yaml
+gremlins unleash                # mutation testing; run go clean -testcache first, see README
 go-mutesting ./...              # deeper mutation audit, by hand, not in CI
 cobra-cli add <name>            # scaffold a new subcommand into cmd/
 ```

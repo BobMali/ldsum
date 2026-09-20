@@ -111,9 +111,6 @@ print a listing's bad-line warnings before saying the command was wrong.
 full `http(s)` URL is fetched from where it points whatever `-c` was, and is
 never handed to `filepath.Join`, which mangles it
 (`filepath.Join("https://ex.org", "f")` is `https:/ex.org/f`).
-`filepath.Clean` mangles identically, so the `byPath` lookup in
-`selectTargets` must skip cleaning a remote entry too, or naming that entry
-on the command line reports `no entry for`.
 
 **An entry beginning `/` belongs to whichever namespace its base does.** In
 rows 1 and 2 it is a local absolute path and keeps the short-circuit it has

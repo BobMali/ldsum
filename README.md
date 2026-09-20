@@ -185,6 +185,10 @@ case. `https` is never downgraded to `http` by a redirect, and the response
 is hashed exactly as sent — `ldsum` does not accept the transparent gzip a
 browser would.
 
+There is no overall timeout on a download: the dial, TLS handshake and wait
+for headers are bounded, but a server that sends headers and then stalls the
+body hangs the command by design, so a large release is never cut off.
+
 ## Exit codes
 
 Both subcommands exit so they drop straight into a script:
