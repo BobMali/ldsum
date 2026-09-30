@@ -8,11 +8,18 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 )
 
 // maxErrorBodyDrain bounds how much of a non-2xx body get reads before
 // closing it. It mirrors net/http's own post-Close drain limit.
 const maxErrorBodyDrain = 256 << 10
+
+// drainTimeout bounds how long that drain may take. A byte bound alone is no
+// bound at all against a server that trickles: the limit is never reached, so
+// the read blocks for as long as it cares to stall. Abandoning the drain
+// costs only a fresh connection, so this is short.
+var drainTimeout = time.Second
 
 // IsRemote reports whether ref names a URL this package fetches. A reference
 // shaped like a URL whose scheme cannot be fetched is an error rather than a
@@ -79,14 +86,7 @@ func get(ref string) (io.ReadCloser, error) {
 	// Division rather than a range compare: two mutants instead of four
 	// boundary ones, and the 200 and 404 cases kill both.
 	if resp.StatusCode/100 != 2 {
-		// The transport itself drains a short body on Close, but only
-		// asynchronously, so a following sequential request may not find the
-		// connection idle yet. Draining here makes reuse synchronous. The
-		// read is bounded because this body is never shown to anyone and the
-		// client has no overall timeout, so an unbounded drain could hang on
-		// a hostile or endless server.
-		_, _ = io.CopyN(io.Discard, resp.Body, maxErrorBodyDrain)
-		_ = resp.Body.Close()
+		drain(resp.Body)
 		return nil, &StatusError{
 			URL:    resp.Request.URL.String(),
 			Status: resp.Status,
@@ -94,4 +94,25 @@ func get(ref string) (io.ReadCloser, error) {
 		}
 	}
 	return resp.Body, nil
+}
+
+// drain reads a non-2xx body far enough to return its connection to the pool,
+// then closes it. The transport drains on Close too, but asynchronously, so a
+// following sequential request may not find the connection idle yet; doing it
+// here makes reuse synchronous.
+//
+// The read is bounded in bytes and in time, and runs in a goroutine so that a
+// stalled body is abandoned rather than waited out: closing the body is what
+// unblocks the read, and nothing here is ever shown to anyone.
+func drain(body io.ReadCloser) {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = io.CopyN(io.Discard, body, maxErrorBodyDrain)
+	}()
+	select {
+	case <-done:
+	case <-time.After(drainTimeout):
+	}
+	_ = body.Close()
 }

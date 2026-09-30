@@ -246,6 +246,52 @@ func TestOpenURL(t *testing.T) {
 		}
 	})
 
+	// The byte bound is not a bound at all against a server that trickles:
+	// a body that stays below it never reaches it, so io.CopyN alone blocks
+	// for as long as the server cares to stall.
+	t.Run("a stalled non-2xx body does not hang Open", func(t *testing.T) {
+		release := make(chan struct{})
+		ts := httptest.NewServer(http.HandlerFunc(
+			func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+				// Flushed so the headers are already through. Stalling before
+				// they are exercises ResponseHeaderTimeout, not the drain.
+				_, _ = io.WriteString(w, "x")
+				w.(http.Flusher).Flush()
+				select {
+				case <-r.Context().Done():
+				case <-release:
+				}
+			}))
+		defer func() {
+			close(release)
+			ts.Close()
+		}()
+
+		saved := drainTimeout
+		drainTimeout = 50 * time.Millisecond
+		t.Cleanup(func() { drainTimeout = saved })
+
+		done := make(chan error, 1)
+		go func() {
+			_, err := Open(ts.URL + "/stalled")
+			done <- err
+		}()
+
+		select {
+		case err := <-done:
+			var statusErr *StatusError
+			if !errors.As(err, &statusErr) {
+				t.Fatalf("error = %v, want a *StatusError", err)
+			}
+			if statusErr.Code != 404 {
+				t.Errorf("StatusError.Code = %d, want 404", statusErr.Code)
+			}
+		case <-time.After(5 * time.Second):
+			t.Fatal("Open() hung draining a stalled 404 body")
+		}
+	})
+
 	t.Run("a refused connection is an error", func(t *testing.T) {
 		ts := httptest.NewServer(http.HandlerFunc(
 			func(_ http.ResponseWriter, _ *http.Request) {}))
