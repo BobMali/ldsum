@@ -19,5 +19,5 @@ unleash:
 
     # The guard against the false green above: a broken run kills its mutant
     # coverage (27% in the case described) long before it dents efficacy.
-    # Actual is 91.59%; the margin is for new error paths, not for regressions.
+    # Actual is 91.67%; the margin is for new error paths, not for regressions.
     mutant-coverage: 85
