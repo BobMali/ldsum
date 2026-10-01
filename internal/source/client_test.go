@@ -328,3 +328,31 @@ func TestClientTimesOutOnTheDial(t *testing.T) {
 		t.Fatal("Open() did not return: the dial timeout is not in effect")
 	}
 }
+
+// Every other test here overrides these, so nothing pins the values that
+// actually ship — and they are the reason this package builds its own
+// transport instead of using DefaultTransport as it stands. Changing one
+// should be a deliberate edit here, not a silent drift.
+func TestClientTimeoutDefaults(t *testing.T) {
+	tests := []struct {
+		name string
+		got  time.Duration
+		want time.Duration
+	}{
+		{"dial", dialTimeout, 10 * time.Second},
+		{"tls handshake", tlsTimeout, 10 * time.Second},
+		{"response headers", headerTimeout, 30 * time.Second},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.got != tt.want {
+				t.Errorf("%s timeout = %v, want %v", tt.name, tt.got, tt.want)
+			}
+		})
+	}
+	// The hop limit checkRedirect re-imposes: Go's own default, which
+	// installing any CheckRedirect at all would otherwise discard.
+	if maxRedirects != 10 {
+		t.Errorf("maxRedirects = %d, want 10", maxRedirects)
+	}
+}
