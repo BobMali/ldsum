@@ -240,3 +240,13 @@ func TestVerifyMissingTargetIsTyped(t *testing.T) {
 		}
 	})
 }
+
+// Nothing in the command path prints this: execute silences a lone mismatch
+// because Verify has already written the expected and actual digests. It is
+// still the error's public text, and a caller of this package would see it.
+func TestMismatchErrorMessage(t *testing.T) {
+	err := &MismatchError{Path: "dist.tar.gz"}
+	if want := "dist.tar.gz: checksum mismatch"; err.Error() != want {
+		t.Errorf("Error() = %q, want %q", err.Error(), want)
+	}
+}
