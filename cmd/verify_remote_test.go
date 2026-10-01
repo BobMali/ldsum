@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -49,5 +50,28 @@ func TestVerifyRemoteTargetsNeedsARemoteSumsFile(t *testing.T) {
 	if strings.Contains(out.String(), "Usage:") {
 		t.Errorf("stdout = %q, want no usage text: this error arises after RunE silences it",
 			out.String())
+	}
+}
+
+// An explicit --remote-targets=false asks for the behaviour a run without a
+// checksum file already has, so refusing it says no to a request that was
+// never in conflict — and breaks a script passing the flag from a variable.
+func TestVerifyRemoteTargetsFalseNeedsNoSumsFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "payload.txt")
+	if err := os.WriteFile(path, []byte("abc"), 0o644); err != nil {
+		t.Fatalf("write fixture: %v", err)
+	}
+
+	root := newRootCmd()
+	var out, errOut bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&errOut)
+	root.SetArgs([]string{"verify", "--remote-targets=false", path, abcSHA256})
+
+	if code := execute(root); code != 0 {
+		t.Errorf("exit = %d, want 0\nstderr: %s", code, errOut.String())
+	}
+	if want := path + ": OK\n"; out.String() != want {
+		t.Errorf("stdout = %q, want %q", out.String(), want)
 	}
 }

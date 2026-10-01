@@ -39,9 +39,11 @@ and fetches them.
 It exits 0 when every digest matched, 1 when one did not or a file is
 missing, and 2 when the command itself was wrong.`,
 		Args: func(cmd *cobra.Command, args []string) error {
-			// The flag resolves a listing's entries, so with no listing there
-			// is nothing for it to do.
-			if cmd.Flags().Changed("remote-targets") && !cmd.Flags().Changed("sums-file") {
+			// The flag resolves a listing's entries, so asking for it with no
+			// listing is a contradiction. The value decides, not whether the
+			// flag was named: an explicit --remote-targets=false asks for what
+			// a run without a listing does anyway.
+			if remoteTargets && !cmd.Flags().Changed("sums-file") {
 				return errors.New("--remote-targets needs --sums-file")
 			}
 			if cmd.Flags().Changed("sums-file") {

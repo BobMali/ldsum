@@ -86,10 +86,12 @@ ldsum verify -c <file|url> [<file>...] [--remote-targets]
 Neither the argument count nor `--algo` changes. `--remote-targets` is a
 bool, and it needs two guards:
 
-- Without `-c`, it is meaningless: there is no listing whose entries could be
-  remote. Exit 2, `--remote-targets needs --sums-file`. This is a `Changed`
-  check in `verify.go`'s existing `Args` function, beside the empty-`-c`
-  check already there.
+- Without `-c`, asking for it is a contradiction: there is no listing whose
+  entries could be remote. Exit 2, `--remote-targets needs --sums-file`. The
+  check reads the flag's *value* in `verify.go`'s existing `Args` function,
+  beside the empty-`-c` check already there — not `Changed`, which would also
+  refuse `--remote-targets=false`, a request for what a run without a listing
+  does anyway.
 - With a *local* `-c`, it is meaningless for the same reason and would
   otherwise silently do nothing. Exit 2,
   `--remote-targets needs a URL for --sums-file`. This one is in
