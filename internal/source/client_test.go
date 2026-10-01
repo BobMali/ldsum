@@ -278,3 +278,53 @@ func TestClientKeepsTheDefaultTransportSettings(t *testing.T) {
 		t.Error("newClient mutated http.DefaultTransport")
 	}
 }
+
+// dialGuard bounds how long Open may take to give up on an unroutable
+// address. It has to sit between the dial timeout this test installs and the
+// time the host itself takes to declare the address unreachable: too high and
+// a missing Dialer.Timeout is reported as the host's own ENETUNREACH instead
+// of as the regression it is. 203.0.113.1 is RFC 5737 TEST-NET-3, which must
+// not be routed; this machine gives up on it after about four seconds.
+const dialGuard = 2 * time.Second
+
+// The dial timeout is the one transport setting with nothing else to reveal
+// it: a connection that is never answered simply hangs, and DefaultTransport's
+// own dialer would wait 30 s. Removing `Timeout: dialTimeout` from newClient
+// must therefore fail here, not merely slow the suite down.
+//
+// A network that answers for TEST-NET-3 quickly — a captive portal, a
+// firewall returning RST, a host with no route at all — cannot host this
+// test, so it skips rather than reporting a failure that is not ldsum's.
+func TestClientTimesOutOnTheDial(t *testing.T) {
+	const blackhole = "http://203.0.113.1:9/f"
+
+	saved := dialTimeout
+	dialTimeout = 50 * time.Millisecond
+	t.Cleanup(func() { dialTimeout = saved })
+	savedClient := client
+	client = newClient(http.DefaultTransport.(*http.Transport))
+	t.Cleanup(func() { client = savedClient })
+
+	done := make(chan error, 1)
+	go func() {
+		_, err := Open(blackhole)
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Skipf("%s answered: this network routes TEST-NET-3", blackhole)
+		}
+		var netErr net.Error
+		if errors.As(err, &netErr) && netErr.Timeout() {
+			return
+		}
+		// Anything else arrived faster than dialGuard, so the host refused or
+		// could not route the address before the dial timeout had a chance to
+		// matter. That says nothing about ldsum either way.
+		t.Skipf("%s is not unanswered here: %v", blackhole, err)
+	case <-time.After(dialGuard):
+		t.Fatal("Open() did not return: the dial timeout is not in effect")
+	}
+}
