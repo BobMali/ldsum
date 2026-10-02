@@ -32,7 +32,11 @@ jobs:
         run: go vet ./...
 
       - name: go test
-        run: go test ./...
+        # -v so a t.Skip is visible. Several tests skip on an environment they
+        # cannot drive — the dial timeout needs an address that goes
+        # unanswered, the mode-000 cases need not to be root — and without -v
+        # a skipped test reads exactly like a passing one.
+        run: go test -v ./...
 
       # .golangci.yml at the repo root configures this: the default linters
       # plus perfsprint and revive, on top of the vet already run above.
