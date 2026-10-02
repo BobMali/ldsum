@@ -334,12 +334,27 @@ varies from run to run. Any single run shows a subset of the rows below.
 | Where | Why it survives |
 |---|---|
 | `internal/hash/hash.go` — `copyBufSize` arithmetic (4 mutants) | The buffer size cannot change the digest. Equivalent. |
-| `internal/run/sum.go` — the `Flush` and `Close` error returns (2 mutants) | No portable way to make either fail on a regular file. `/dev/full` is Linux-only. |
 | `internal/run/sum.go` — the `if err != nil` block after `WalkDir` returns (4 mutants) | Unreachable by construction: the callback returns `nil` for everything. The source comment says so and keeps it anyway. |
+| `internal/source/source.go` — `maxErrorBodyDrain` arithmetic (4 mutants) | Any bound large enough for the reuse test and small enough to stop an endless body behaves identically. `drainTimeout`, not the byte count, is what ends a stalled drain. Equivalent. |
+| `internal/run/sums.go` — `sumsRemote` in the base switch and the two `resolve` calls (3 mutants) | Redundant by construction: `VerifySums` refuses `--remote-targets` with a local `-c` before this runs, so `opts.RemoteTargets` already implies `sumsRemote`. Equivalent. |
+| `internal/source/source.go` — `u.Scheme == ""` in `IsRemote` (1 mutant) | A reference with no scheme fails the `://` check on the next line and returns the same answer. Equivalent. |
+| `internal/source/source.go` — the `/100` divisor in the status check (1 mutant) | `/99` classifies every status the command can actually receive the same way. Equivalent for all reachable inputs. |
+| `internal/run/sums.go` — the `IsRemote` error returns in `selectTargets` (3 mutants) | Unreachable: `source.Open` has already rejected an unfetchable scheme by the time `selectTargets` asks about it. |
 | `cmd/exit.go` — the `if worst == 0` guard in `exitCode` (2 mutants) | Unreachable by construction: `VerifyErrors.Errs` is never empty and every member maps to exit 1 or 2, so `worst` is never 0. The guard is deliberate defensive code; kept anyway. |
 
-One run against `24af39f` on 2026-09-03 scored 97% (0.966216, 286 passed,
-10 failed, 12 duplicated, 296 total), every survivor a row above — a run's
-numbers, not the numbers, given the count above. A `FAIL` outside the table
-above is worth investigating; the score itself is a rough indicator, not a
-tripwire.
+One run against `209e0e8` on 2026-10-02 scored 93% (0.930108, 346 passed,
+26 failed, 15 duplicated, 372 total) — a run's numbers, not the numbers,
+given the count above. A `FAIL` outside the table above is worth
+investigating; the score itself is a rough indicator, not a tripwire.
+
+Twenty of those 26 are rows above. The remaining six are real gaps rather
+than equivalences, one mutant each, open at the time of writing:
+
+| Where | What no test holds |
+|---|---|
+| `internal/source/source.go:54` — `JoinURL`'s `url.Parse` error return | Needs a base that `url.Parse` rejects while the caller still reaches `JoinURL`. Carried as a deferred minor since the URL-input branch. |
+| `internal/run/sums.go:133` — `resolve`'s `IsRemote` error return | Needs a checksum-file *entry* naming an unfetchable scheme, such as a line pointing at `ftp://host/f`. Entry schemes are classified but the rejection is never asserted. |
+| `internal/source/client.go` — `req.URL.Scheme != "https"` in `checkRedirect` | Only an `https`→`http` redirect is tested. Replacing the clause with `true` refuses an `https`→`https` redirect too, and nothing notices. |
+| `internal/run/sums.go:228` — `opts.RemoteTargets` in the named-paths branch | No test names specific paths against a *remote* checksum file without `--remote-targets`. The same mutation in the all-entries branch at :202 is killed, which is what makes this one a hole rather than an equivalence. |
+| `internal/run/verify.go:54` — the `verify %s: %w` wrap | Deleting the return still fails, just later and with a different message, so no test pins the prefix. |
+| `internal/source/source.go:63` — `Open`'s `IsRemote` error return | Deleting it falls through to `os.Open("ftp://…")`, which also errors, so the unsupported-scheme test passes either way. It asserts only that *an* error came back. |
