@@ -3,6 +3,7 @@ package run
 import (
 	"bytes"
 	"errors"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -896,6 +897,61 @@ func TestSumFileReportsAnUnreadableStream(t *testing.T) {
 			}
 			if !strings.Contains(errOut.String(), "is a directory") {
 				t.Errorf("stderr = %q, want it to report the read failure", errOut.String())
+			}
+		})
+	}
+}
+
+// failWriter rejects the write, the close, or neither, so each arm of Sum's
+// flush-then-close switch can be reached. A real file cannot be made to
+// refuse a write it has already accepted, which is why those two arms were
+// the last lines in this package no test executed.
+type failWriter struct {
+	writeErr error
+	closeErr error
+}
+
+func (w *failWriter) Write(p []byte) (int, error) {
+	if w.writeErr != nil {
+		return 0, w.writeErr
+	}
+	return len(p), nil
+}
+
+func (w *failWriter) Close() error { return w.closeErr }
+
+// A lost flush or close is silently truncated output: the file exists and
+// looks plausible while missing lines. Sum has to report that in preference
+// to whatever the per-file count said, because the count looks fine.
+func TestSumReportsAFailedFlushOrClose(t *testing.T) {
+	errWrite := errors.New("no space left on device")
+	errClose := errors.New("close failed")
+
+	tests := []struct {
+		name string
+		w    *failWriter
+		want error
+	}{
+		{name: "a failed flush", w: &failWriter{writeErr: errWrite}, want: errWrite},
+		{name: "a failed close", w: &failWriter{closeErr: errClose}, want: errClose},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := sumTree(t, map[string]string{"a.txt": "abc"})
+			saved := createOutput
+			createOutput = func(string) (io.WriteCloser, error) { return tt.w, nil }
+			t.Cleanup(func() { createOutput = saved })
+
+			var out, errOut bytes.Buffer
+			err := Sum(&out, &errOut, SumOptions{
+				Paths:     []string{filepath.Join(root, "a.txt")},
+				Algorithm: "sha256",
+				Format:    checksums.Text,
+				Output:    filepath.Join(root, "SHA256SUMS"),
+			})
+			if !errors.Is(err, tt.want) {
+				t.Errorf("Sum() error = %v, want %v", err, tt.want)
 			}
 		})
 	}

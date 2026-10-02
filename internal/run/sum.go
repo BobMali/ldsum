@@ -22,6 +22,12 @@ type SumOptions struct {
 	Verbose   bool
 }
 
+// createOutput opens the file -o names, truncating it. It is a var because a
+// failing flush or close is otherwise unreachable from a test: no portable
+// filesystem operation makes a real file reject a write it already accepted.
+// internal/source holds its http.Client the same way, for the same reason.
+var createOutput = func(name string) (io.WriteCloser, error) { return os.Create(name) }
+
 // Sum prints the digest of each path in opts.Paths, to out or to the file named
 // by opts.Output. A file that cannot be summed is reported on errOut and the
 // rest still run; the returned error then reports how many failed.
@@ -38,7 +44,7 @@ func Sum(out, errOut io.Writer, opts SumOptions) error {
 
 	// Truncating, like the shell redirection this replaces, and opened before
 	// any hashing so an unwritable destination costs no work.
-	f, err := os.Create(opts.Output)
+	f, err := createOutput(opts.Output)
 	if err != nil {
 		return err
 	}
