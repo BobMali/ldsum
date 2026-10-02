@@ -54,10 +54,10 @@ func Sum(out, errOut io.Writer, opts SumOptions) error {
 	// asked to write a file outweighs whatever the per-file count says.
 	flushErr := w.Flush()
 	closeErr := f.Close()
-	switch {
-	case flushErr != nil:
+	if flushErr != nil {
 		return flushErr
-	case closeErr != nil:
+	}
+	if closeErr != nil {
 		return closeErr
 	}
 	return sumErr
