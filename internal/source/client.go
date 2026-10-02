@@ -10,11 +10,19 @@ import (
 // Overridable so a test can watch a stall without waiting out a real one.
 // They are vars for that reason alone; see the plan's mutation-testing note.
 var (
-	dialTimeout   = 10 * time.Second
-	tlsTimeout    = 10 * time.Second
-	headerTimeout = 30 * time.Second
-	maxRedirects  = 10
+	dialTimeout, tlsTimeout, headerTimeout = timeoutDefaults()
+	maxRedirects                           = 10
 )
+
+// timeoutDefaults returns the timeouts the shipped client uses. They live in a
+// function rather than inline above because Go's coverage does not instrument
+// package-level initialisers: written inline, the mutation gate reports them
+// NOT COVERED however firmly a test pins them. Keeping an initialiser also
+// keeps the ordering sound — an init() would run after newClient had already
+// read the vars and built the client with zeroes.
+func timeoutDefaults() (dial, tls, header time.Duration) {
+	return 10 * time.Second, 10 * time.Second, 30 * time.Second
+}
 
 var client = newClient(http.DefaultTransport.(*http.Transport))
 
