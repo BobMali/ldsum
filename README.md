@@ -342,19 +342,15 @@ varies from run to run. Any single run shows a subset of the rows below.
 | `internal/run/sums.go` — the `IsRemote` error returns in `selectTargets` (3 mutants) | Unreachable: `source.Open` has already rejected an unfetchable scheme by the time `selectTargets` asks about it. |
 | `cmd/exit.go` — the `if worst == 0` guard in `exitCode` (2 mutants) | Unreachable by construction: `VerifyErrors.Errs` is never empty and every member maps to exit 1 or 2, so `worst` is never 0. The guard is deliberate defensive code; kept anyway. |
 
-One run against `209e0e8` on 2026-10-02 scored 93% (0.930108, 346 passed,
-26 failed, 15 duplicated, 372 total) — a run's numbers, not the numbers,
-given the count above. A `FAIL` outside the table above is worth
-investigating; the score itself is a rough indicator, not a tripwire.
+One run against `5ac1618` on 2026-10-03 scored 95% (0.948925, 353 passed,
+19 failed, 15 duplicated, 372 total), every survivor a row above — a run's
+numbers, not the numbers, given the count above. A `FAIL` outside the table
+above is worth investigating; the score itself is a rough indicator, not a
+tripwire.
 
-Twenty of those 26 are rows above. The remaining six are real gaps rather
-than equivalences, one mutant each, open at the time of writing:
-
-| Where | What no test holds |
-|---|---|
-| `internal/source/source.go:54` — `JoinURL`'s `url.Parse` error return | Needs a base that `url.Parse` rejects while the caller still reaches `JoinURL`. Carried as a deferred minor since the URL-input branch. |
-| `internal/run/sums.go:133` — `resolve`'s `IsRemote` error return | Needs a checksum-file *entry* naming an unfetchable scheme, such as a line pointing at `ftp://host/f`. Entry schemes are classified but the rejection is never asserted. |
-| `internal/source/client.go` — `req.URL.Scheme != "https"` in `checkRedirect` | Only an `https`→`http` redirect is tested. Replacing the clause with `true` refuses an `https`→`https` redirect too, and nothing notices. |
-| `internal/run/sums.go:228` — `opts.RemoteTargets` in the named-paths branch | No test names specific paths against a *remote* checksum file without `--remote-targets`. The same mutation in the all-entries branch at :202 is killed, which is what makes this one a hole rather than an equivalence. |
-| `internal/run/verify.go:54` — the `verify %s: %w` wrap | Deleting the return still fails, just later and with a different message, so no test pins the prefix. |
-| `internal/source/source.go:63` — `Open`'s `IsRemote` error return | Deleting it falls through to `os.Open("ftp://…")`, which also errors, so the unsupported-scheme test passes either way. It asserts only that *an* error came back. |
+The run before it, against `209e0e8`, scored 93% with 26 survivors, six of
+which were real gaps rather than equivalences: `JoinURL`'s and `Open`'s and
+`resolve`'s error returns, `checkRedirect`'s scheme comparison, the
+named-paths resolution branch, and `Verify`'s path wrap. All six are closed.
+The seventh fewer survivor is the deduplication variance described above,
+not a seventh fix.
