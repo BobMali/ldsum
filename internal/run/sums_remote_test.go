@@ -342,3 +342,49 @@ func TestVerifySumsRemoteListingURLEntryIsUsedAsItIs(t *testing.T) {
 		t.Errorf("stdout = %q, want %q", out.String(), want)
 	}
 }
+
+// The same resolution as the test above, but reached through the named-paths
+// branch. Naming entries must not move where they resolve, and the
+// all-entries branch cannot stand in for this one: only one of the two is
+// taken per run.
+func TestVerifySumsRemoteListingChecksNamedLocalFiles(t *testing.T) {
+	dir := t.TempDir()
+	writeIn(t, dir, "a.txt", "abc")
+	writeIn(t, dir, "b.txt", "abc")
+	ts := sumsServer(t, abcSHA256+"  a.txt\n"+abcSHA256+"  b.txt\n", nil)
+
+	// As above: a remote listing's relative entries resolve against the
+	// working directory unless --remote-targets says otherwise.
+	t.Chdir(dir)
+
+	var out, errOut bytes.Buffer
+	err := VerifySums(&out, &errOut, SumsOptions{
+		SumsFile: ts.URL + "/v1.2/SHA256SUMS",
+		Paths:    []string{"a.txt"},
+	})
+	if err != nil {
+		t.Fatalf("VerifySums() error = %v", err)
+	}
+	if want := "a.txt: OK\n"; out.String() != want {
+		t.Errorf("stdout = %q, want %q", out.String(), want)
+	}
+}
+
+// An entry naming a scheme this package cannot fetch is the entry's problem,
+// not the listing's. resolve classifies every entry it is given, and the
+// refusal has to reach the caller rather than becoming a local file name.
+func TestVerifySumsEntryWithAnUnsupportedScheme(t *testing.T) {
+	sums := writeIn(t, t.TempDir(), "SHA256SUMS", abcSHA256+"  ftp://host/f\n")
+
+	var out, errOut bytes.Buffer
+	err := VerifySums(&out, &errOut, SumsOptions{SumsFile: sums})
+	if err == nil {
+		t.Fatal("VerifySums() error = nil, want the entry's scheme to be refused")
+	}
+	if !strings.Contains(err.Error(), "unsupported scheme") {
+		t.Errorf("error = %q, want it to name the unsupported scheme", err)
+	}
+	if !strings.Contains(err.Error(), `"ftp"`) {
+		t.Errorf("error = %q, want it to quote the offending scheme", err)
+	}
+}

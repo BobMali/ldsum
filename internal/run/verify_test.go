@@ -250,3 +250,17 @@ func TestMismatchErrorMessage(t *testing.T) {
 		t.Errorf("Error() = %q, want %q", err.Error(), want)
 	}
 }
+
+// The wrap is the only thing that names the file when the checksum itself is
+// the problem: a digest parse error knows the string it was handed, not which
+// file it was meant for.
+func TestVerifyWrapsAParseErrorWithThePath(t *testing.T) {
+	var out, errOut bytes.Buffer
+	err := Verify(&out, &errOut, VerifyOptions{Path: "dist.tar.gz", Expected: "nothex"})
+	if err == nil {
+		t.Fatal("Verify() error = nil, want a parse error")
+	}
+	if want := "verify dist.tar.gz: "; !strings.HasPrefix(err.Error(), want) {
+		t.Errorf("error = %q, want it to begin %q", err.Error(), want)
+	}
+}
