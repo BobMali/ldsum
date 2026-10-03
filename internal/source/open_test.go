@@ -326,3 +326,27 @@ func TestOpenURL(t *testing.T) {
 		}
 	})
 }
+
+// Open must return IsRemote's verdict rather than fall through to os.Open.
+// "ftp://host/f" fails to open locally too, so an error on its own says
+// nothing about which branch produced it — only the type does.
+func TestOpenRejectsAnUnfetchableScheme(t *testing.T) {
+	rc, err := Open("ftp://host/f")
+	if err == nil {
+		_ = rc.Close()
+		t.Fatal("Open() error = nil, want an unsupported-scheme error")
+	}
+	if rc != nil {
+		t.Error("Open() returned a reader alongside its error")
+	}
+	// The assertion that distinguishes the branches: os.Open would have
+	// produced an *fs.PathError naming the operation.
+	var pathErr *fs.PathError
+	if errors.As(err, &pathErr) {
+		t.Errorf("error = %T (%v), want the scheme error, not a local open failure",
+			err, err)
+	}
+	if !strings.Contains(err.Error(), "unsupported scheme") {
+		t.Errorf("error = %q, want it to name the unsupported scheme", err)
+	}
+}

@@ -356,3 +356,34 @@ func TestClientTimeoutDefaults(t *testing.T) {
 		t.Errorf("maxRedirects = %d, want 10", maxRedirects)
 	}
 }
+
+// checkRedirect has to refuse a downgrade, not every redirect. With the
+// second clause replaced by a constant it would reject an https->https hop
+// as well, and the downgrade test alone cannot tell those two apart.
+func TestClientAllowsAnHTTPSToHTTPSRedirect(t *testing.T) {
+	secure := httptest.NewTLSServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/start" {
+				http.Redirect(w, r, "/end", http.StatusFound)
+				return
+			}
+			_, _ = io.WriteString(w, "abc")
+		}))
+	defer secure.Close()
+	// Built over the TLS server's transport so its certificate is trusted;
+	// otherwise the request fails before the redirect policy is consulted.
+	withClient(t, secure)
+
+	rc, err := Open(secure.URL + "/start")
+	if err != nil {
+		t.Fatalf("Open() error = %v, want the https->https redirect followed", err)
+	}
+	defer rc.Close()
+	b, err := io.ReadAll(rc)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if string(b) != "abc" {
+		t.Errorf("contents = %q, want %q", b, "abc")
+	}
+}

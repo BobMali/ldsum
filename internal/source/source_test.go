@@ -115,3 +115,16 @@ func TestJoinURL(t *testing.T) {
 		})
 	}
 }
+
+// resolve cannot reach this: it has already run the same string through
+// IsRemote, which parses it. JoinURL is exported all the same, and must
+// report the failure rather than hand back a silently empty string.
+func TestJoinURLRejectsAnUnparseableBase(t *testing.T) {
+	got, err := JoinURL("https://[::1", "f")
+	if err == nil {
+		t.Fatalf("JoinURL() error = nil, want a parse error; got %q", got)
+	}
+	if got != "" {
+		t.Errorf("JoinURL() = %q, want empty alongside an error", got)
+	}
+}
