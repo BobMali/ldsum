@@ -354,3 +354,47 @@ which were real gaps rather than equivalences: `JoinURL`'s and `Open`'s and
 named-paths resolution branch, and `Verify`'s path wrap. All six are closed.
 The seventh fewer survivor is the deduplication variance described above,
 not a seventh fix.
+
+### Performance
+
+`verify -c` checks its entries one at a time, and that is a decision rather
+than an oversight. The measurements behind it, taken on 2026-10-03 on an Intel
+Core i9-9980HK (8 cores, 16 threads, NVMe):
+
+```sh
+go test -run '^$' -bench . ./internal/hash
+go test -run '^$' -bench Parallel -cpu 1,2,4,8,16 ./internal/hash
+```
+
+Hashing from memory, sha256 runs at 468 MB/s on one core and sha512 at
+684 MB/s — sha512 is the faster of the two on a 64-bit CPU. That rate is the
+ceiling on any verification, and a warm read sits close under it: a 1 GiB
+listing of 8 MiB files hashed from the page cache at about 440 MB/s. Read cold,
+the same listing managed about 137 MB/s, so a first read is limited by the disk
+and a re-read by the hash.
+
+Either way it parallelises. `BenchmarkSumParallel` reaches 6.7x at 8 workers
+and 7.3x at 16 (the hyperthreads add little), and hashing the cold listing with
+8 workers was 7.4x faster. Fetching with `--remote-targets` is latency-bound and
+scales almost perfectly: 200 requests at 50 ms each went from 10.3 s to 1.3 s.
+One huge file gains nothing — SHA-256 cannot be split within a file — and many
+tiny files gain least, at 3.7x, because opening and closing them dominates.
+
+The cold figure is a floor, and it took two attempts. `F_NOCACHE` on the read
+alone still serves pages an earlier pass left in memory, which reported a free
+disk; the corpus has to be written with it too. It also disables readahead,
+which a real cold read gets.
+
+What a worker pool would cost is the reason there isn't one. Verdicts come out
+in listing order and the tests pin it, so results need buffering per entry and
+flushing in order, and a slow first entry would then hold back every verdict
+behind it. A mismatch is three writes that must stay together. And concurrency
+is the one thing that resists the deterministic tests the mutation gate
+depends on. No workload has needed the speed yet; when one does, the numbers
+above are the case to make.
+
+Two things would change the picture. A CPU with SHA extensions — this one has
+none — typically hashes several times faster, leaving the disk as the limit. And
+`BenchmarkSumSmallInput` shows `Sum` allocating a 32 KiB buffer per call to
+hash 4 KiB, about 33 KB per file; reusing it measured 7% faster on 20,000 tiny
+files sequentially, and 26% with 8 workers.

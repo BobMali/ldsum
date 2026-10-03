@@ -38,6 +38,7 @@ go test ./cmd -run TestFoo      # a single test
 golangci-lint run               # lint; config in .golangci.yml
 gremlins unleash                # mutation testing; run go clean -testcache first, see README
 go-mutesting ./...              # deeper mutation audit, by hand, not in CI
+go test -run '^$' -bench . ./internal/hash  # hash throughput; README explains the figures
 cobra-cli add <name>            # scaffold a new subcommand into cmd/
 ```
 
